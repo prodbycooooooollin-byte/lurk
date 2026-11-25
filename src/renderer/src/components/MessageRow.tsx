@@ -1,0 +1,281 @@
+import { memo, useMemo, type MouseEvent } from 'react'
+import * as CM from '@radix-ui/react-context-menu'
+import * as RTooltip from '@radix-ui/react-tooltip'
+import { Reply, Copy, UserRound, Trash2, Clock, Ban, Eye, CornerDownRight } from 'lucide-react'
+import type { ChatMessage } from '@/lib/types'
+import { tokenize, type Token } from '@/lib/tokenize'
+import { findBadge } from '@/lib/emotes'
+import { cn, readableColor, timeShort } from '@/lib/util'
+import { useT } from '@/lib/i18n'
+import { useSettings } from '@/store/settings'
+import { useUi } from '@/store/ui'
+import { deleteMessage, timeoutUser, banUser } from '@/lib/client'
+
+export function openUserCard(login: string, channel: string, e?: { clientX: number; clientY: number }): void {
+  const x = Math.min(Math.max(12, (e?.clientX ?? window.innerWidth / 2) + 12), window.innerWidth - 352)
+  const y = Math.min(Math.max(48, (e?.clientY ?? 140) - 40), window.innerHeight - 520)
+  useUi.getState().set({ userCard: { login: login.toLowerCase(), channel, x, y } })
+}
+
+const EmoteImg = memo(function EmoteImg({ tk }: { tk: Extract<Token, { t: 'emote' }> }) {
+  const t = useT()
+  const img = <img className="emote" src={tk.e.url} alt={tk.e.name} loading="lazy" draggable={false} />
+  const source = { twitch: 'Twitch', '7tv': '7TV', bttv: 'BetterTTV', ffz: 'FrankerFaceZ' }[tk.e.source]
+  return (
+    <RTooltip.Root delayDuration={250}>
+      <RTooltip.Trigger asChild>
+        {tk.overlays.length ? (
+          <span className="emote-stack">
+            {img}
+            {tk.overlays.map((o, i) => (
+              <img key={i} className="emote zw" src={o.url} alt={o.name} loading="lazy" draggable={false} />
+            ))}
+          </span>
+        ) : (
+          img
+        )}
+      </RTooltip.Trigger>
+      <RTooltip.Portal>
+        <RTooltip.Content side="top" sideOffset={6} className="z-[80] flex flex-col items-center gap-1 rounded-lg border border-line bg-raised p-3 shadow-xl">
+          <img src={tk.e.url4x ?? tk.e.url} alt="" className="h-16 w-auto" />
+          <span className="mt-1 text-[13px] font-medium text-ink">{[tk.e.name, ...tk.overlays.map((o) => o.name)].join(' + ')}</span>
+          <span className="text-[11.5px] text-faint">
+            {source} · {tk.e.scope === 'channel' ? t('emoteChannel') : t('emoteGlobal')}
+          </span>
+        </RTooltip.Content>
+      </RTooltip.Portal>
+    </RTooltip.Root>
+  )
+})
+
+function Tokens({ msg, emoteVersion }: { msg: ChatMessage; emoteVersion: number }) {
+  const thirdParty = useSettings((s) => s.thirdPartyEmotes)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const tokens = useMemo(() => tokenize(msg.text, msg.twitchEmotes, msg.roomId, thirdParty), [msg.text, msg.twitchEmotes, msg.roomId, thirdParty, emoteVersion])
+  return (
+    <>
+      {tokens.map((tk, i) => {
+        switch (tk.t) {
+          case 'text':
+            return <span key={i}>{tk.v}</span>
+          case 'emote':
+            return <EmoteImg key={i} tk={tk} />
+          case 'mention':
+            return (
+              <button key={i} className="font-semibold text-ink hover:underline" onClick={(e) => openUserCard(tk.login, msg.channel, e)}>
+                {tk.v}
+              </button>
+            )
+          case 'link':
+            return (
+              <a
+                key={i}
+                href={tk.href}
+                className="text-ink underline decoration-faint underline-offset-2 hover:decoration-ink"
+                onClick={(e) => {
+                  e.preventDefault()
+                  void window.bridge.open(tk.href)
+                }}
+              >
+                {tk.v}
+              </a>
+            )
+        }
+      })}
+    </>
+  )
+}
+
+function SystemLine({ msg }: { msg: ChatMessage }) {
+  const t = useT()
+  if (msg.noticeType === 'history') {
+    return (
+      <div className="flex items-center gap-3 px-4 py-2 text-[11.5px] text-faint">
+        <span className="h-px flex-1 bg-line" />
+        {t('endHistory')}
+        <span className="h-px flex-1 bg-line" />
+      </div>
+    )
+  }
+  return (
+    <div className={cn('flex items-baseline gap-2 px-4 py-[3px] text-[12.5px] text-faint', msg.historical && 'opacity-60', msg.noticeType === 'error' && 'text-live')}>
+      <span className="selectable">{msg.systemText}</span>
+      <span className="ml-auto text-[11px] tabular-nums">{timeShort(msg.ts)}</span>
+    </div>
+  )
+}
+
+function JoinLine({ msg }: { msg: ChatMessage }) {
+  const t = useT()
+  const joins = msg.joins?.filter((j) => !j.part) ?? []
+  const parts = msg.joins?.filter((j) => j.part) ?? []
+  const names = (list: typeof joins) =>
+    list.map((j, i) => (
+      <span key={j.login}>
+        {i > 0 && ', '}
+        <button className="text-muted hover:text-ink hover:underline" onClick={(e) => openUserCard(j.login, msg.channel, e)}>
+          {j.login}
+        </button>
+      </span>
+    ))
+  return (
+    <div className="flex flex-col px-4 py-[3px] text-[12.5px] text-faint">
+      {joins.length > 0 && (
+        <div className="flex items-baseline gap-2">
+          <span className="h-1.5 w-1.5 shrink-0 translate-y-[-1px] rounded-full bg-join" />
+          <span>
+            {names(joins)} {joins.length === 1 ? t('joinedOne') : t('joinedMany')}
+          </span>
+        </div>
+      )}
+      {parts.length > 0 && (
+        <div className="flex items-baseline gap-2">
+          <span className="h-1.5 w-1.5 shrink-0 translate-y-[-1px] rounded-full border border-faint" />
+          <span>
+            {names(parts)} {parts.length === 1 ? t('leftOne') : t('leftMany')}
+          </span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+interface RowProps {
+  msg: ChatMessage
+  index: number
+  dark: boolean
+  emoteVersion: number
+  canMod: boolean
+}
+
+export const MessageRow = memo(function MessageRow({ msg, index, dark, emoteVersion, canMod }: RowProps) {
+  const s = useSettings()
+  const t = useT()
+  const set = useUi((u) => u.set)
+
+  if (msg.kind === 'system' || msg.kind === 'notice') return <SystemLine msg={msg} />
+  if (msg.kind === 'joins') return <JoinLine msg={msg} />
+  if (msg.deleted && s.deletedMode === 'hide') {
+    return <div className="px-4 py-0.5 text-[12px] text-faint">{t('removedMsg', { name: msg.displayName ?? '', info: msg.timeoutInfo ?? '' })}</div>
+  }
+
+  const login = msg.login ?? ''
+  const nameColor = readableColor(msg.color, login, dark)
+  const onName = (e: MouseEvent) => openUserCard(login, msg.channel, e)
+  const reply = () => set({ replyTo: { channel: msg.channel, id: msg.id, login, text: msg.text } })
+
+  const hl = msg.highlight
+  const hlStyle =
+    hl === 'keyword' && msg.highlightColor
+      ? { background: `color-mix(in srgb, ${msg.highlightColor} 10%, transparent)`, boxShadow: `inset 2px 0 0 ${msg.highlightColor}` }
+      : undefined
+
+  const body = (
+    <div
+      className={cn(
+        'chat-line group relative selectable',
+        s.density === 'compact' ? 'px-3 py-0' : 'px-4 py-[3px]',
+        s.alternateRows && index % 2 === 1 && 'bg-ink/[0.025]',
+        'hover:bg-ink/[0.035]',
+        hl === 'mention' && 'bg-ink/[0.07] shadow-[inset_2px_0_0_rgb(var(--ink))]',
+        hl === 'first' && 'shadow-[inset_2px_0_0_rgb(var(--join))]',
+        hl === 'watch' && 'shadow-[inset_2px_0_0_rgb(var(--warn))]',
+        msg.historical && 'opacity-50',
+        msg.deleted && 'opacity-40'
+      )}
+      style={hlStyle}
+    >
+      {hl === 'first' && <div className="text-[11px] font-medium text-join">{t('firstMsg')}</div>}
+      {msg.reply && (
+        <div className="flex items-center gap-1.5 truncate text-[12px] text-faint">
+          <CornerDownRight size={12} className="shrink-0" />
+          <span>{t('replyingTo')}</span>
+          <button className="text-muted hover:underline" onClick={(e) => openUserCard(msg.reply!.login, msg.channel, e)}>
+            @{msg.reply.displayName}
+          </button>
+          <span className="truncate">{msg.reply.text}</span>
+        </div>
+      )}
+      <div className={cn(msg.deleted && 'line-through decoration-faint')}>
+        {s.timestamps && <span className="mr-2 text-[11px] tabular-nums text-faint">{timeShort(msg.ts, s.timestampSeconds)}</span>}
+        {s.showBadges &&
+          msg.badges.map((b) => {
+            const badge = findBadge(msg.channel, b.set, b.version)
+            return badge ? <img key={b.set} className="badge" src={badge.url} alt="" title={badge.title} draggable={false} /> : null
+          })}
+        <button className="font-semibold hover:underline" style={{ color: nameColor }} onClick={onName}>
+          {msg.displayName}
+          {msg.displayName && msg.displayName.toLowerCase() !== login && <span className="font-normal opacity-70"> ({login})</span>}
+        </button>
+        {msg.kind === 'action' ? ' ' : <span className="text-faint">: </span>}
+        <span className="text-ink/90" style={msg.kind === 'action' ? { color: nameColor } : undefined}>
+          <Tokens msg={msg} emoteVersion={emoteVersion} />
+        </span>
+        {msg.bits ? <span className="ml-1.5 text-[11.5px] font-medium text-muted">{t('bits', { n: msg.bits })}</span> : null}
+        {msg.deleted && <span className="ml-2 text-[11px] text-faint">({msg.timeoutInfo})</span>}
+      </div>
+      {!msg.historical && !msg.deleted && (
+        <div className="absolute right-2 top-0 hidden items-center rounded-md border border-line bg-ground shadow-sm group-hover:flex">
+          <button title={t('reply')} className="p-1.5 text-faint hover:text-ink" onClick={reply}>
+            <Reply size={13} />
+          </button>
+          <button title={t('userCard')} className="p-1.5 text-faint hover:text-ink" onClick={onName}>
+            <UserRound size={13} />
+          </button>
+          {canMod && !msg.self && (
+            <button title={t('timeout10')} className="p-1.5 text-faint hover:text-ink" onClick={() => void timeoutUser(msg.channel, login, 600)}>
+              <Clock size={13} />
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+
+  if (msg.kind === 'usernotice') {
+    return (
+      <div className={cn('my-1 border-y border-line/70 bg-ink/[0.03] py-1.5', msg.historical && 'opacity-50')}>
+        <div className="px-4 text-[12.5px] font-medium text-ink">
+          <span className="selectable">{msg.noticeType === 'announcement' ? t('announcement') : msg.systemText}</span>
+        </div>
+        {msg.text && body}
+      </div>
+    )
+  }
+
+  return (
+    <CM.Root>
+      <CM.Trigger asChild>{body}</CM.Trigger>
+      <CM.Portal>
+        <CM.Content className="menu">
+          <CM.Item className="menu-item" onSelect={reply}>
+            <Reply size={14} /> {t('reply')}
+          </CM.Item>
+          <CM.Item className="menu-item" onSelect={() => void navigator.clipboard.writeText(msg.text)}>
+            <Copy size={14} /> {t('copyText')}
+          </CM.Item>
+          <CM.Item className="menu-item" onSelect={() => openUserCard(login, msg.channel)}>
+            <UserRound size={14} /> {t('openUserCard')}
+          </CM.Item>
+          <CM.Item className="menu-item" onSelect={() => s.toggleList('watchUsers', login)}>
+            <Eye size={14} /> {s.watchUsers.includes(login) ? t('unwatch') : t('watchJoin')}
+          </CM.Item>
+          {canMod && !msg.self && (
+            <>
+              <CM.Separator className="menu-sep" />
+              <CM.Item className="menu-item" onSelect={() => void deleteMessage(msg.channel, msg.id)}>
+                <Trash2 size={14} /> {t('deleteMsg')}
+              </CM.Item>
+              <CM.Item className="menu-item" onSelect={() => void timeoutUser(msg.channel, login, 600)}>
+                <Clock size={14} /> {t('timeout10')}
+              </CM.Item>
+              <CM.Item className="menu-item danger" onSelect={() => void banUser(msg.channel, login)}>
+                <Ban size={14} /> {t('ban')}
+              </CM.Item>
+            </>
+          )}
+        </CM.Content>
+      </CM.Portal>
+    </CM.Root>
+  )
+})

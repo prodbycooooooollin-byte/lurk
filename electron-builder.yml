@@ -1,0 +1,29 @@
+appId: app.lurk.desktop
+productName: Lurk
+directories:
+  buildResources: build
+  output: release
+files:
+  - out/**
+  - build/icon.png
+  - package.json
+asar: true
+win:
+  target: [nsis]
+  artifactName: Lurk-Setup-${version}.${ext}
+  icon: build/icon.png
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  shortcutName: Lurk
+mac:
+  target: [dmg, zip]
+  icon: build/icon.png
+  category: public.app-category.social-networking
+linux:
+  target: [AppImage]
+  icon: build/icon.png
+  category: Network
+publish:
+  provider: github
+  releaseType: release
