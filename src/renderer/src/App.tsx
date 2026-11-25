@@ -5,7 +5,7 @@ import { Hash } from 'lucide-react'
 import { TitleBar, LurkMark } from './components/TitleBar'
 import { ChannelRail } from './components/ChannelRail'
 import { ChatSplit } from './components/ChatSplit'
-import { PresencePanel } from './components/PresencePanel'
+import { SidePanel } from './components/PresencePanel'
 import { UserCard } from './components/UserCard'
 import { EmotePreview } from './components/EmotePreview'
 import { SettingsDialog } from './components/SettingsDialog'
@@ -145,7 +145,7 @@ export default function App() {
               ))}
             </main>
           )}
-          {ui.panelOpen && ui.view === 'chat' && focusedChannel && <PresencePanel channel={focusedChannel} />}
+          {ui.view === 'chat' && focusedChannel && <SidePanel channel={focusedChannel} />}
         </div>
       </div>
       <UserCard />

@@ -156,6 +156,9 @@ const en = {
   noEmotesCounted: 'No emotes counted yet.',
   pickChannel: 'Pick a channel.',
   closePanel: 'Close sidebar',
+  keepOpen: 'Keep open',
+  collapseSidebar: 'Collapse',
+  recentJoins: 'Recent joins',
 
   // user card
   notFound: 'Account not found or suspended',
@@ -547,6 +550,9 @@ const de: Record<TKey, string> = {
   noEmotesCounted: 'Noch keine Emotes gezählt.',
   pickChannel: 'Wähle einen Kanal.',
   closePanel: 'Seitenleiste schließen',
+  keepOpen: 'Offen halten',
+  collapseSidebar: 'Einklappen',
+  recentJoins: 'Zuletzt gejoint',
 
   notFound: 'Konto nicht gefunden oder gesperrt',
   loadFailed: 'Profil konnte nicht geladen werden',

@@ -43,9 +43,9 @@ export const useUi = create<UiState>()(
       channels: [],
       splits: [],
       focused: 0,
-      panelOpen: true,
+      panelOpen: false,
       panelTab: 'presence',
-      railCollapsed: false,
+      railCollapsed: true,
       pinned: false,
       view: 'chat',
       userCard: null,
@@ -109,7 +109,13 @@ export const useUi = create<UiState>()(
     }),
     {
       name: 'lurk-ui',
-      version: 1,
+      version: 2,
+      // v2: Seitenleisten starten eingeklappt (Mini-Ansicht)
+      migrate: (state, version) => {
+        const s = state as UiState
+        if (version < 2) return { ...s, panelOpen: false, railCollapsed: true }
+        return s
+      },
       partialize: (s) => ({
         channels: s.channels,
         splits: s.splits,

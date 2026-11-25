@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import * as CM from '@radix-ui/react-context-menu'
-import { Plus, AtSign, Settings, Columns2, ExternalLink, Trash2, ChevronUp, ChevronDown } from 'lucide-react'
+import { Plus, AtSign, Settings, Columns2, ExternalLink, Trash2, ChevronUp, ChevronDown, Pin, PinOff } from 'lucide-react'
 import { useUi } from '@/store/ui'
 import { useChat } from '@/store/chat'
 import { partChannel } from '@/lib/client'
 import { useT } from '@/lib/i18n'
 import { Avatar, Tip } from './ui'
 import { cn, formatNumber } from '@/lib/util'
+import { useHoverIntent } from '@/lib/useHoverIntent'
 
 export function ChannelRail() {
   const ui = useUi()
@@ -15,11 +16,24 @@ export function ChannelRail() {
   const mentionsCount = useChat((s) => s.mentions.length)
   const [seenMentions, setSeenMentions] = useState(0)
   const active = ui.view === 'chat' ? ui.splits[ui.focused] : undefined
-  const expanded = !ui.railCollapsed
+  const pinned = !ui.railCollapsed
+  const hover = useHoverIntent()
+  // eingeklappt: 52 px breit, beim Hovern fährt die volle Liste als Overlay über den Chat
+  const expanded = pinned || hover.hover
+  const floating = !pinned && hover.hover
   const unseenMentions = ui.view !== 'mentions' ? mentionsCount - seenMentions : 0
 
   return (
-    <nav className={cn('flex shrink-0 flex-col border-r border-line py-2 transition-[width] duration-150', expanded ? 'w-[200px]' : 'w-[52px]')}>
+    <div className={cn('relative shrink-0 transition-[width] duration-200 ease-out', pinned ? 'w-[208px]' : 'w-[52px]')}>
+    <nav
+      onMouseEnter={pinned ? undefined : hover.enter}
+      onMouseLeave={pinned ? undefined : hover.leave}
+      className={cn(
+        'absolute inset-y-0 left-0 z-40 flex flex-col overflow-hidden border-r border-line bg-ground py-2 transition-[width,box-shadow] duration-200 ease-out',
+        expanded ? 'w-[208px]' : 'w-[52px]',
+        floating && 'shadow-[16px_0_48px_-16px_rgba(0,0,0,0.6)]'
+      )}
+    >
       <Row
         expanded={expanded}
         active={ui.view === 'mentions'}
@@ -89,7 +103,20 @@ export function ChannelRail() {
         <Row expanded={expanded} onClick={() => ui.set({ joinOpen: true })} icon={<Plus size={15} strokeWidth={1.75} />} label={t('addChannel')} quiet />
       </div>
       <Row expanded={expanded} onClick={() => ui.set({ settingsOpen: true })} icon={<Settings size={15} strokeWidth={1.75} />} label={t('settings')} quiet />
+      {expanded && (
+        <Row
+          expanded
+          onClick={() => {
+            hover.reset()
+            ui.set({ railCollapsed: pinned })
+          }}
+          icon={pinned ? <PinOff size={14} strokeWidth={1.75} /> : <Pin size={14} strokeWidth={1.75} />}
+          label={pinned ? t('collapseSidebar') : t('keepOpen')}
+          quiet
+        />
+      )}
     </nav>
+    </div>
   )
 }
 
@@ -110,8 +137,7 @@ function Row({ expanded, active, quiet, icon, label, meta, count, unread, onClic
     <button
       onClick={onClick}
       className={cn(
-        'relative mx-2 flex h-8 items-center gap-2.5 rounded-md px-1.5 text-left transition-colors',
-        expanded ? '' : 'justify-center',
+        'relative mx-2 flex h-8 shrink-0 items-center gap-2.5 whitespace-nowrap rounded-md px-1.5 text-left transition-colors',
         active ? 'bg-raised text-ink' : quiet ? 'text-faint hover:text-ink' : 'text-muted hover:bg-hover hover:text-ink'
       )}
     >
