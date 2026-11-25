@@ -13,7 +13,10 @@ export function imageUrl(href: string): string | null {
   const path = u.pathname
 
   // Imgur: i.imgur.com/abc.png direkt, imgur.com/abc → i.imgur.com/abc.jpg (keine Alben/Galerien)
-  if (host === 'i.imgur.com') return IMAGE_EXT.test(path) ? `https://i.imgur.com${path.replace(/\.gifv$/i, '.gif')}` : `https://i.imgur.com${path}.jpg`
+  if (host === 'i.imgur.com') {
+    if (/\.gifv$/i.test(path)) return `https://i.imgur.com${path.replace(/\.gifv$/i, '.gif')}`
+    return IMAGE_EXT.test(path) ? `https://i.imgur.com${path}` : `https://i.imgur.com${path}.jpg`
+  }
   if (host === 'imgur.com') {
     const m = /^\/([a-zA-Z0-9]{5,8})$/.exec(path)
     return m ? `https://i.imgur.com/${m[1]}.jpg` : null
