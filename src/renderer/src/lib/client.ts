@@ -10,9 +10,11 @@ import { useChat, emptyChannel, type ChannelState } from '@/store/chat'
 import { useSettings } from '@/store/settings'
 import { useUi } from '@/store/ui'
 import { useAuth, helixCtx } from '@/store/auth'
-import { chime, formatDuration, parseDurationArg } from './util'
+import { formatDuration, parseDurationArg } from './util'
+import { playSound } from './sounds'
 import { t, type TKey } from './i18n'
 import { startleLogo } from '@/components/LurkLogo'
+import { countMessage, ensureHistory, startHistory } from './history'
 
 type Op = (get: (c: string) => ChannelState, ctx: FlushCtx) => void
 interface FlushCtx {
@@ -268,6 +270,7 @@ function handle(m: IrcMessage, historical = false): void {
         const ch = get(c)
         ch.messages.push(msg)
         if (!historical) {
+          countMessage(c, msg.login!)
           touchPresence(ch, msg.login!, { displayName: msg.displayName, color: msg.color, badges: msg.badges, ts: msg.ts, message: true })
           bumpStats(ch, msg, first)
           if (hl.kind === 'mention' || hl.kind === 'keyword') {
@@ -279,7 +282,7 @@ function handle(m: IrcMessage, historical = false): void {
       })
       if (!historical && (hl.kind === 'mention' || hl.kind === 'keyword')) {
         startleLogo()
-        if (hl.sound) chime('mention', useSettings.getState().soundVolume)
+        if (hl.sound) void playSound(useSettings.getState().mentionSoundId)
         notifyDesktop(t('inChannel', { u: msg.displayName ?? '', c }), msg.text)
       }
       break
@@ -416,7 +419,7 @@ function handle(m: IrcMessage, historical = false): void {
             }
           }
         })
-        if (s.joinSound) chime('join', s.soundVolume)
+        if (s.joinSound) void playSound(s.joinSoundId)
         notifyDesktop(t('watchedHere'), t('watchJoined', { u: login, c }))
       }
       break
@@ -457,6 +460,54 @@ function handle(m: IrcMessage, historical = false): void {
 
 // ---------- Öffentliche API ----------
 let irc: TwitchIrc | null = null
+
+// ---------- Unsichtbar lurken ----------
+// Die lesende Verbindung bleibt anonym (justinfan) – so taucht man in keiner Zuschauerliste auf.
+// Zum Schreiben gibt es eine zweite, angemeldete Verbindung, die einem Kanal erst beitritt,
+// wenn man dort tatsächlich etwas sendet.
+let writer: TwitchIrc | null = null
+let writerReady: Promise<void> | null = null
+let writerResolve: (() => void) | null = null
+
+const authPair = (): { login: string; token: string } | null => {
+  const a = useAuth.getState()
+  return a.token && a.login ? { login: a.login, token: a.token } : null
+}
+const readerAuth = (ok: boolean): { login: string; token: string } | null => (ok && !useSettings.getState().invisible ? authPair() : null)
+
+/** Vom Schreib-Kanal nur das übernehmen, was die lesende Verbindung im Unsichtbar-Modus nicht bekommt */
+function handleWriter(m: IrcMessage): void {
+  if (m.command === 'USERSTATE' || m.command === 'GLOBALUSERSTATE' || (m.command === 'NOTICE' && m.channel)) handle(m)
+}
+
+async function ensureWriter(c: string): Promise<TwitchIrc | null> {
+  const auth = authPair()
+  if (!auth) return null
+  if (!writer) {
+    writerReady = new Promise((r) => (writerResolve = r))
+    writer = new TwitchIrc(handleWriter, (s) => {
+      if (s === 'connected') writerResolve?.()
+    })
+    writer.setAuth(auth)
+    writer.connect()
+  }
+  writer.join(c)
+  await Promise.race([writerReady, new Promise((r) => setTimeout(r, 6000))])
+  return writer
+}
+
+function stopWriter(): void {
+  writer?.disconnect()
+  writer = null
+  writerReady = null
+}
+
+/** Unsichtbar-Modus umgeschaltet: lesende Verbindung neu anmelden */
+export function applyInvisible(): void {
+  if (!irc) return
+  irc.setAuth(readerAuth(!!authPair()))
+  if (!useSettings.getState().invisible) stopWriter()
+}
 let infoTimer: number | undefined
 let helixTimer: number | undefined
 const historyLoaded = new Set<string>()
@@ -549,6 +600,7 @@ async function refreshHelixPresence(): Promise<void> {
 export function joinChannel(c: string): void {
   useChat.setState((s) => (s.channels[c] ? s : { channels: { ...s.channels, [c]: emptyChannel(c) } }))
   irc?.join(c)
+  ensureHistory(c)
   void loadChannelBadges(c)
   void loadHistory(c)
   void refreshInfo()
@@ -598,7 +650,9 @@ async function ensureToken(): Promise<boolean> {
 export async function applyAuth(): Promise<void> {
   const ok = await ensureToken()
   const a = useAuth.getState()
-  irc?.setAuth(ok ? { login: a.login, token: a.token } : null)
+  irc?.setAuth(readerAuth(ok))
+  if (!ok) stopWriter()
+  else writer?.setAuth({ login: a.login, token: a.token })
 }
 
 export async function startClient(): Promise<void> {
@@ -616,12 +670,15 @@ export async function startClient(): Promise<void> {
       }
     }
   )
+  startHistory()
   onEmotesChanged(() => useChat.setState((s) => ({ emoteVersion: s.emoteVersion + 1 })))
   void loadGlobalEmotes()
   void loadGlobalBadges()
   const ok = await ensureToken()
-  const a = useAuth.getState()
-  if (ok) irc.setAuth({ login: a.login, token: a.token })
+  if (ok) irc.setAuth(readerAuth(ok))
+  useSettings.subscribe((s, prev) => {
+    if (s.invisible !== prev.invisible) applyInvisible()
+  })
   for (const c of useUi.getState().channels) joinChannel(c)
   irc.connect()
   infoTimer = window.setInterval(() => void refreshInfo(), 60_000)
@@ -636,7 +693,10 @@ async function applyAuthSilently(): Promise<void> {
   if (!before) return
   await ensureToken()
   const a = useAuth.getState()
-  if (a.token !== before) irc?.setAuth(a.token ? { login: a.login, token: a.token } : null)
+  if (a.token !== before) {
+    irc?.setAuth(readerAuth(!!a.token))
+    writer?.setAuth(authPair())
+  }
 }
 
 export function stopClient(): void {
@@ -644,6 +704,7 @@ export function stopClient(): void {
   window.clearInterval(helixTimer)
   irc?.disconnect()
   irc = null
+  stopWriter()
 }
 
 export function reconnect(): void {
@@ -756,12 +817,17 @@ export async function send(c: string, input: string, replyTo?: string): Promise<
   return sendRaw(c, text, replyTo)
 }
 
-function sendRaw(c: string, text: string, replyTo?: string): boolean {
-  if (!irc?.loggedIn) {
+async function sendRaw(c: string, text: string, replyTo?: string): Promise<boolean> {
+  if (!authPair()) {
     toast.error(t('signInToChat'))
     return false
   }
-  if (!irc.say(c, text, replyTo)) {
+  const out = useSettings.getState().invisible ? await ensureWriter(c) : irc
+  if (!out?.loggedIn) {
+    toast.error(t('signInToChat'))
+    return false
+  }
+  if (!out.say(c, text, replyTo)) {
     toast.error(t('tooMany'))
     return false
   }

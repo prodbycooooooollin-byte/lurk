@@ -93,7 +93,7 @@ function createWindow(): void {
 // Erlaubte Hosts für Netzwerkzugriffe aus dem Renderer (umgeht CORS sauber über den Main-Prozess)
 const ALLOWED_HOSTS = [
   'api.twitch.tv', 'id.twitch.tv', 'api.ivr.fi', '7tv.io', 'api.betterttv.net',
-  'api.frankerfacez.com', 'recent-messages.robotty.de'
+  'api.frankerfacez.com', 'recent-messages.robotty.de', 'logs.ivr.fi'
 ]
 
 interface NetRequest { url: string; method?: string; headers?: Record<string, string>; body?: string }

@@ -8,6 +8,13 @@ export interface Keyword {
   sound: boolean
 }
 
+export interface CustomSound {
+  id: string
+  name: string
+  /** Audiodatei als data:-URL */
+  data: string
+}
+
 export interface Settings {
   language: 'en' | 'de'
   theme: 'dark' | 'light'
@@ -26,6 +33,16 @@ export interface Settings {
   mentionSound: boolean
   joinSound: boolean
   soundVolume: number
+  /** Klang bei Erwähnung / Watchlist-Join: eingebauter Name oder "custom:<id>" */
+  mentionSoundId: string
+  joinSoundId: string
+  customSounds: CustomSound[]
+  /** Bots (Nightbot, Zuschauerlisten-Crawler …) aus Listen und Zahlen ausblenden */
+  hideBots: boolean
+  /** Bilder hinter Links (Imgur, direkte Bild-Links, 7TV) anzeigen */
+  imagePreviews: 'inline' | 'hover' | 'off'
+  /** Unsichtbar lurken: lesen ohne in der Zuschauerliste aufzutauchen */
+  invisible: boolean
   desktopNotify: boolean
   pauseOnHover: boolean
   maxMessages: number
@@ -60,6 +77,12 @@ export const useSettings = create<Settings>()(
       mentionSound: true,
       joinSound: true,
       soundVolume: 0.6,
+      mentionSoundId: 'ping',
+      joinSoundId: 'knock',
+      customSounds: [],
+      hideBots: true,
+      imagePreviews: 'inline',
+      invisible: false,
       desktopNotify: true,
       pauseOnHover: true,
       maxMessages: 1500,

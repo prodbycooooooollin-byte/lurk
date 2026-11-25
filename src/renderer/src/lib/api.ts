@@ -207,3 +207,27 @@ export function helixDeleteMessage(ctx: HelixCtx, broadcasterId: string, message
 export function helixAnnounce(ctx: HelixCtx, broadcasterId: string, message: string) {
   return helix(ctx, 'POST', `chat/announcements?broadcaster_id=${broadcasterId}&moderator_id=${ctx.userId}`, { message })
 }
+
+// ---------- Öffentliche Chat-Logs (justlog auf logs.ivr.fi) ----------
+export interface LogLine {
+  text: string
+  timestamp: string
+  displayName?: string
+}
+
+/** Letzte geloggte Nachrichten einer Person in einem Kanal (neueste zuerst). null = Kanal nicht geloggt / Fehler */
+export async function userLogs(channel: string, user: string, max = 150): Promise<LogLine[] | null> {
+  const c = encodeURIComponent(channel)
+  const u = encodeURIComponent(user)
+  const list = await getJson<{ availableLogs?: { year: string; month: string }[] }>(`https://logs.ivr.fi/list?channel=${c}&user=${u}`)
+  if (!list?.availableLogs) return null
+  const out: LogLine[] = []
+  for (const { year, month } of list.availableLogs.slice(0, 3)) {
+    const r = await getJson<{ messages?: LogLine[] }>(`https://logs.ivr.fi/channel/${c}/user/${u}/${year}/${month}?json=1&reverse=1`)
+    for (const m of r?.messages ?? []) {
+      out.push(m)
+      if (out.length >= max) return out
+    }
+  }
+  return out
+}

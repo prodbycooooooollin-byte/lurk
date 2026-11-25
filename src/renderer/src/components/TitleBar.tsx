@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Minus, Square, X, Copy, Pin, PanelRight, PanelLeft, Search, ArrowDownToLine, Loader2 } from 'lucide-react'
+import { Minus, Square, X, Copy, Pin, PanelRight, PanelLeft, Search, ArrowDownToLine, Loader2, EyeOff } from 'lucide-react'
+import { useSettings } from '@/store/settings'
 import type { UpdateState } from '../../../preload/index.d'
 import { useUi } from '@/store/ui'
 import { useChat } from '@/store/chat'
@@ -20,6 +21,7 @@ export function TitleBar() {
   const t = useT()
   const conn = useChat((s) => s.conn)
   const login = useAuth((a) => a.login)
+  const invisible = useSettings((s) => s.invisible)
   const [max, setMax] = useState(false)
   const [upd, setUpd] = useState<UpdateState>({ state: 'idle' })
   const mac = window.bridge.platform === 'darwin'
@@ -39,6 +41,13 @@ export function TitleBar() {
           {conn === 'connected' ? login || t('guest') : conn === 'connecting' ? t('statusConnecting') : t('statusOffline')}
         </button>
       </Tip>
+      {invisible && login && (
+        <Tip label={t('invisibleOn')}>
+          <span className="no-drag -ml-1.5 flex items-center text-faint">
+            <EyeOff size={13} strokeWidth={1.75} />
+          </span>
+        </Tip>
+      )}
 
       <div className="flex flex-1 justify-center">
         <button

@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Search, Star, Pin, PanelRightClose, PanelRightOpen, X } from 'lucide-react'
+import { Search, Star, Pin, PanelRightClose, PanelRightOpen, X, Bot } from 'lucide-react'
 import { useChat } from '@/store/chat'
 import { useUi, type PanelTab } from '@/store/ui'
 import { useSettings } from '@/store/settings'
@@ -12,8 +12,12 @@ import { IconButton, Tabs, Tip } from './ui'
 import { useHoverIntent } from '@/lib/useHoverIntent'
 import { cn, readableColor, relTime, timeShort, formatNumber, useThrottled } from '@/lib/util'
 import type { PresenceUser } from '@/lib/types'
+import { UserAvatar } from './UserAvatar'
+import { isNewAccount, useUserMeta } from '@/lib/avatars'
+import { getHistory, isRegular } from '@/lib/history'
+import { isBot } from '@/lib/bots'
 
-type Filter = 'all' | 'new' | 'lurker' | 'active' | 'left'
+type Filter = 'all' | 'new' | 'lurker' | 'regular' | 'active' | 'left'
 
 function useTick(ms: number): void {
   const [, set] = useState(0)
@@ -32,48 +36,65 @@ function BigStat({ value, label }: { value: number | string; label: string }) {
   )
 }
 
+/** Anwesende eines Kanals (gedrosselt neu berechnet) – Bots fliegen optional raus, damit die Lurker-Zahl stimmt */
+function usePresenceView(channel: string, throttle: number) {
+  const version = useThrottled(useChat((s) => s.channels[channel]?.presenceVersion ?? 0), throttle)
+  const hideBots = useSettings((s) => s.hideBots)
+  return useMemo(() => {
+    const all = Object.values(useChat.getState().channels[channel]?.presence ?? {}).filter((p) => !hideBots || !isBot(p.login))
+    return { now: Date.now(), all, present: all.filter((p) => p.present) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [version, channel, hideBots])
+}
+
+const isNewcomer = (p: PresenceUser, now: number): boolean => p.joinedAt !== null && now - p.joinedAt < 10 * 60_000
+const isActiveNow = (p: PresenceUser, now: number): boolean => !!p.lastMsgAt && now - p.lastMsgAt < 10 * 60_000
+
 function PresenceList({ channel }: { channel: string }) {
   const t = useT()
-  // Liste höchstens einmal pro Sekunde neu sortieren – in großen Kanälen sind das zehntausende Einträge
-  const presenceVersion = useThrottled(useChat((s) => s.channels[channel]?.presenceVersion ?? 0), 1000)
   const namesReceived = useChat((s) => s.channels[channel]?.namesReceived)
   const helix = useChat((s) => s.channels[channel]?.helixPresence)
   const watch = useSettings((s) => s.watchUsers)
+  const hideBots = useSettings((s) => s.hideBots)
+  const setSettings = useSettings((s) => s.set)
   const dark = useSettings((s) => s.theme) === 'dark'
   const [q, setQ] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
   const parentRef = useRef<HTMLDivElement>(null)
   useTick(30_000)
+  const { now, all, present } = usePresenceView(channel, 1000)
 
   const { list, counts } = useMemo(() => {
-    const now = Date.now()
-    const all = Object.values(useChat.getState().channels[channel]?.presence ?? {})
-    const present = all.filter((p) => p.present)
-    const isNew = (p: PresenceUser) => p.joinedAt !== null && now - p.joinedAt < 10 * 60_000
-    const isActive = (p: PresenceUser) => !!p.lastMsgAt && now - p.lastMsgAt < 10 * 60_000
+    const regular = (p: PresenceUser): boolean => isRegular(getHistory(channel, p.login))
     const counts = {
       all: present.length,
-      new: present.filter(isNew).length,
+      new: present.filter((p) => isNewcomer(p, now)).length,
       lurker: present.filter((p) => p.msgCount === 0).length,
-      active: present.filter(isActive).length,
-      left: all.filter((p) => !p.present).length
+      regular: present.filter(regular).length,
+      active: present.filter((p) => isActiveNow(p, now)).length,
+      left: all.length - present.length
     }
-    let base = filter === 'left' ? all.filter((p) => !p.present) : present
-    if (filter === 'new') base = base.filter(isNew)
+    let base = filter === 'left' ? all.filter((p) => !p.present) : present.slice()
+    if (filter === 'new') base = base.filter((p) => isNewcomer(p, now))
     if (filter === 'lurker') base = base.filter((p) => p.msgCount === 0)
-    if (filter === 'active') base = base.filter(isActive)
-    if (q) base = base.filter((p) => p.login.includes(q.toLowerCase()))
-    const score = (p: PresenceUser) => (watch.includes(p.login) ? 4e13 : 0) + (filter === 'left' ? p.leftAt ?? 0 : Math.max(p.joinedAt ?? 0, p.lastMsgAt ?? 0))
+    if (filter === 'regular') base = base.filter(regular)
+    if (filter === 'active') base = base.filter((p) => isActiveNow(p, now))
+    const ql = q.toLowerCase()
+    if (ql) base = base.filter((p) => p.login.includes(ql) || !!p.displayName?.toLowerCase().includes(ql))
+    const score = (p: PresenceUser): number =>
+      (watch.includes(p.login) ? 4e13 : 0) +
+      (filter === 'regular' ? (getHistory(channel, p.login)?.v ?? 0) * 1e10 : 0) +
+      (filter === 'left' ? p.leftAt ?? 0 : Math.max(p.joinedAt ?? 0, p.lastMsgAt ?? 0))
     base.sort((a, b) => score(b) - score(a) || a.login.localeCompare(b.login))
     return { list: base, counts }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [presenceVersion, channel, filter, q, watch])
+  }, [all, present, now, channel, filter, q, watch])
 
-  const virt = useVirtualizer({ count: list.length, getScrollElement: () => parentRef.current, estimateSize: () => 44, overscan: 12 })
+  const virt = useVirtualizer({ count: list.length, getScrollElement: () => parentRef.current, estimateSize: () => 46, overscan: 10 })
   const filters: [Filter, string][] = [
     ['all', t('filterAll')],
     ['new', t('filterNew')],
     ['lurker', t('filterQuiet')],
+    ['regular', t('filterRegular')],
     ['active', t('filterActive')],
     ['left', t('filterLeft')]
   ]
@@ -83,7 +104,7 @@ function PresenceList({ channel }: { channel: string }) {
       <div className="grid grid-cols-3 gap-3 px-4 pb-4 pt-4">
         <BigStat value={formatNumber(counts.all)} label={t('statInChat')} />
         <BigStat value={formatNumber(counts.lurker)} label={t('statQuiet')} />
-        <BigStat value={formatNumber(counts.new)} label={t('statNew')} />
+        <BigStat value={formatNumber(counts.regular)} label={t('statRegulars')} />
       </div>
       {!namesReceived && !helix && <p className="mx-4 mb-3 border-l border-line pl-3 text-[11.5px] leading-relaxed text-faint">{t('noNamesWarn')}</p>}
       <div className="px-4">
@@ -97,48 +118,66 @@ function PresenceList({ channel }: { channel: string }) {
           )}
         </div>
       </div>
-      <div className="flex flex-wrap gap-x-3 gap-y-1 px-4 pb-2 pt-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 pb-2 pt-3">
         {filters.map(([id, label]) => (
           <button key={id} onClick={() => setFilter(id)} className={cn('text-[12px] transition-colors', filter === id ? 'font-medium text-ink' : 'text-faint hover:text-muted')}>
             {label} <span className="tabular-nums opacity-60">{counts[id]}</span>
           </button>
         ))}
+        <Tip label={hideBots ? t('botsHidden') : t('botsShown')}>
+          <button onClick={() => setSettings({ hideBots: !hideBots })} className={cn('ml-auto flex items-center gap-1 text-[11.5px]', hideBots ? 'text-faint hover:text-muted' : 'text-ink')}>
+            <Bot size={12} /> {hideBots ? t('botsOff') : t('botsOn')}
+          </button>
+        </Tip>
       </div>
       <div ref={parentRef} className="min-h-0 flex-1 overflow-y-auto [contain:strict]">
         {list.length === 0 && <div className="px-6 py-10 text-center text-[12.5px] text-faint">{q ? t('nobodyName') : t('nobodyHere')}</div>}
         <div style={{ height: virt.getTotalSize(), position: 'relative' }}>
           {virt.getVirtualItems().map((it) => {
             const p = list[it.index]
-            const watched = watch.includes(p.login)
-            return (
-              <button
-                key={p.login}
-                onClick={(e) => openUserCard(p.login, channel, e)}
-                className="absolute left-0 top-0 flex w-full items-center gap-3 px-4 text-left hover:bg-hover"
-                style={{ height: it.size, transform: `translateY(${it.start}px)` }}
-              >
-                <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', p.present ? (p.msgCount ? 'bg-join' : 'border border-join bg-transparent') : 'border border-faint')} />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="truncate text-[13px] font-medium" style={{ color: p.color ? readableColor(p.color, p.login, dark) : undefined }}>
-                      {p.displayName ?? p.login}
-                    </span>
-                    {watched && <Star size={11} className="shrink-0 fill-ink text-ink" />}
-                  </div>
-                  <div className="truncate text-[11.5px] text-faint">
-                    {!p.present && p.leftAt ? t('leftAgo', { t: relTime(p.leftAt) }) : p.joinedAt ? t('joinedAt', { t: timeShort(p.joinedAt) }) : t('wasHere')}
-                    {' · '}
-                    {p.msgCount > 0 ? t('msgs', { n: p.msgCount }) : t('noMsgsYet')}
-                  </div>
-                </div>
-              </button>
-            )
+            return <PresenceRow key={p.login} p={p} channel={channel} watched={watch.includes(p.login)} dark={dark} now={now} top={it.start} height={it.size} />
           })}
         </div>
       </div>
     </div>
   )
 }
+
+const PresenceRow = memo(function PresenceRow({ p, channel, watched, dark, now, top, height }: { p: PresenceUser; channel: string; watched: boolean; dark: boolean; now: number; top: number; height: number }) {
+  const t = useT()
+  const meta = useUserMeta(p.login)
+  const hist = getHistory(channel, p.login)
+  const stay = p.present && p.joinedAt ? Math.round((now - p.joinedAt) / 60_000) : 0
+  return (
+    <button
+      onClick={(e) => openUserCard(p.login, channel, e)}
+      className="absolute left-0 top-0 flex w-full items-center gap-2.5 px-4 text-left hover:bg-hover"
+      style={{ height, transform: `translateY(${top}px)` }}
+    >
+      <span className="relative">
+        <UserAvatar login={p.login} name={p.displayName} color={p.color} dark={dark} size={28} className={cn(!p.present && 'opacity-50 grayscale')} />
+        {p.present && <span className={cn('absolute -bottom-px -right-px h-2.5 w-2.5 rounded-full border-2 border-ground', p.msgCount ? 'bg-join' : 'bg-faint')} />}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <span className="truncate text-[13px] font-medium" style={{ color: p.color ? readableColor(p.color, p.login, dark) : undefined }}>
+            {p.displayName ?? p.login}
+          </span>
+          {watched && <Star size={11} className="shrink-0 fill-ink text-ink" />}
+          {isRegular(hist) && <span className="shrink-0 rounded-full bg-join/15 px-1.5 text-[9.5px] font-semibold uppercase text-join">{t('regularShort')}</span>}
+          {isNewAccount(meta?.createdAt) && <span className="shrink-0 rounded-full bg-warn/15 px-1.5 text-[9.5px] font-semibold uppercase text-warn">{t('newShort')}</span>}
+        </div>
+        <div className="truncate text-[11.5px] text-faint">
+          {!p.present && p.leftAt ? t('leftAgo', { t: relTime(p.leftAt) }) : p.joinedAt ? t('joinedAt', { t: timeShort(p.joinedAt) }) : t('wasHere')}
+          {stay >= 5 && ` · ${stay < 60 ? `${stay} min` : `${(stay / 60).toFixed(1)} h`}`}
+          {' · '}
+          {p.msgCount > 0 ? t('msgs', { n: p.msgCount }) : t('noMsgsYet')}
+          {hist && hist.v > 1 && ` · ${t('visitsShort', { v: hist.v })}`}
+        </div>
+      </div>
+    </button>
+  )
+})
 
 function ActivityFeed({ channel }: { channel: string }) {
   const t = useT()
@@ -317,36 +356,28 @@ function MiniPanel({ channel }: { channel: string }) {
   const t = useT()
   const set = useUi((u) => u.set)
   const dark = useSettings((s) => s.theme) === 'dark'
-  const presentCount = useChat((s) => s.channels[channel]?.presentCount ?? 0)
-  const version = useThrottled(useChat((s) => s.channels[channel]?.presenceVersion ?? 0), 2000)
+  const hideBots = useSettings((s) => s.hideBots)
   const activity = useChat((s) => s.channels[channel]?.activity)
   const buckets = useChat((s) => s.channels[channel]?.stats.buckets)
   useChat((s) => s.channels[channel]?.statsVersion)
   useTick(30_000)
-  const { lurking, fresh } = useMemo(() => {
-    const now = Date.now()
-    let lurking = 0
-    let fresh = 0
-    for (const p of Object.values(useChat.getState().channels[channel]?.presence ?? {})) {
-      if (!p.present) continue
-      if (p.msgCount === 0) lurking++
-      if (p.joinedAt !== null && now - p.joinedAt < 600_000) fresh++
-    }
-    return { lurking, fresh }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [version, channel])
+  const { now, present } = usePresenceView(channel, 2000)
+  const presentCount = present.length
+  const lurking = present.filter((p) => p.msgCount === 0).length
+  const fresh = present.filter((p) => isNewcomer(p, now)).length
   const perMin = (buckets ?? []).slice(-5).reduce((a, b) => a + b, 0) / 5
   const joins = useMemo(() => {
     const out: string[] = []
     const seen = new Set<string>()
     const a = activity ?? []
     for (let i = a.length - 1; i >= 0 && out.length < 9; i--) {
-      if (a[i].type !== 'join' || seen.has(a[i].login)) continue
-      seen.add(a[i].login)
-      out.push(a[i].login)
+      const l = a[i].login
+      if (a[i].type !== 'join' || seen.has(l) || (hideBots && isBot(l))) continue
+      seen.add(l)
+      out.push(l)
     }
     return out
-  }, [activity])
+  }, [activity, hideBots])
   const presence = useChat.getState().channels[channel]?.presence
 
   return (
@@ -360,7 +391,6 @@ function MiniPanel({ channel }: { channel: string }) {
         <AnimatePresence initial={false}>
           {joins.map((login) => {
             const p = presence?.[login]
-            const color = readableColor(p?.color, login, dark)
             return (
               <motion.button
                 key={login}
@@ -371,11 +401,10 @@ function MiniPanel({ channel }: { channel: string }) {
                 transition={{ duration: 0.18 }}
                 onClick={(e) => openUserCard(login, channel, e)}
                 title={`${p?.displayName ?? login} · ${t('recentJoins')}`}
-                className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold transition-transform hover:scale-110"
-                style={{ color, background: `color-mix(in srgb, ${color} 16%, transparent)` }}
+                className="relative shrink-0 rounded-full transition-transform hover:scale-110"
               >
-                {(p?.displayName ?? login).slice(0, 1).toUpperCase()}
-                {p?.present && <span className="absolute -bottom-px -right-px h-2 w-2 rounded-full border-[1.5px] border-ground bg-join" />}
+                <UserAvatar login={login} name={p?.displayName} color={p?.color} dark={dark} size={30} />
+                {p?.present && <span className="absolute -bottom-px -right-px h-2.5 w-2.5 rounded-full border-2 border-ground bg-join" />}
               </motion.button>
             )
           })}

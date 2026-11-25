@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { useT } from '@/lib/i18n'
 
 interface Preview {
+  /** reines Bild (Link-Vorschau) statt Emote */
+  image?: boolean
   name: string
   big: string
   source: string
@@ -21,14 +23,15 @@ export function EmotePreview() {
     let timer: number | undefined
     let current: HTMLElement | null = null
     const over = (e: MouseEvent): void => {
-      const el = (e.target as HTMLElement | null)?.closest<HTMLElement>('[data-emote]') ?? null
+      const el = (e.target as HTMLElement | null)?.closest<HTMLElement>('[data-emote],[data-image]') ?? null
       if (el === current) return
       current = el
       window.clearTimeout(timer)
       if (!el) return setP(null)
       timer = window.setTimeout(() => {
         const r = el.getBoundingClientRect()
-        setP({ name: el.dataset.emote ?? '', big: el.dataset.big ?? '', source: el.dataset.src ?? '', scope: el.dataset.scope ?? '', x: r.left + r.width / 2, y: r.top })
+        if (el.dataset.image) setP({ image: true, name: '', big: el.dataset.image, source: '', scope: '', x: r.left + r.width / 2, y: r.top })
+        else setP({ name: el.dataset.emote ?? '', big: el.dataset.big ?? '', source: el.dataset.src ?? '', scope: el.dataset.scope ?? '', x: r.left + r.width / 2, y: r.top })
       }, 220)
     }
     const hide = (): void => {
@@ -47,6 +50,17 @@ export function EmotePreview() {
   }, [])
 
   if (!p) return null
+  if (p.image) {
+    const below = p.y < window.innerHeight / 2
+    return (
+      <div
+        className="pointer-events-none fixed z-[90] overflow-hidden rounded-lg border border-line bg-raised shadow-2xl"
+        style={{ left: Math.min(Math.max(170, p.x), window.innerWidth - 170), top: below ? p.y + 24 : p.y - 8, transform: `translate(-50%, ${below ? '0' : '-100%'})` }}
+      >
+        <img src={p.big} alt="" referrerPolicy="no-referrer" className="block max-h-[360px] max-w-[320px] object-contain" />
+      </div>
+    )
+  }
   const left = Math.min(Math.max(90, p.x), window.innerWidth - 90)
   const below = p.y < 150
   return (

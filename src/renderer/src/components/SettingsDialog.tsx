@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as Slider from '@radix-ui/react-slider'
-import { X, Trash2, Plus, Copy, ExternalLink, Loader2, Volume2 } from 'lucide-react'
+import { X, Trash2, Plus, Copy, ExternalLink, Loader2, Volume2, Play, Upload } from 'lucide-react'
 import { useUi } from '@/store/ui'
 import { useSettings, type Settings } from '@/store/settings'
 import { useAuth, BUILT_IN_CLIENT_ID } from '@/store/auth'
@@ -9,7 +9,8 @@ import { startDeviceFlow, pollDeviceToken, validateToken, type DeviceCode } from
 import { applyAuth } from '@/lib/client'
 import { useT, t as tt, LANGS, type TKey } from '@/lib/i18n'
 import { Button, IconButton, Input, Switch } from './ui'
-import { chime, cn } from '@/lib/util'
+import { cn } from '@/lib/util'
+import { BUILTIN, addCustomSound, playSound, removeCustomSound } from '@/lib/sounds'
 import { toast } from 'sonner'
 import type { UpdateState } from '../../../preload/index.d'
 import { LurkLogo } from './LurkLogo'
@@ -147,6 +148,18 @@ function ChatTab() {
       <Toggle k="showHistory" label="history" hint="historyHint" />
       <Toggle k="pauseOnHover" label="pauseHover" hint="pauseHoverHint" />
       <Toggle k="inlineJoins" label="inlineJoins" hint="inlineJoinsHint" />
+      <Toggle k="invisible" label="invisible" hint="invisibleDesc" />
+      <Row label={t('imagePreviews')} hint={t('imagePreviewsDesc')}>
+        <Segmented
+          value={s.imagePreviews}
+          options={[
+            ['inline', t('previewInline')],
+            ['hover', t('previewHover')],
+            ['off', t('previewOff')]
+          ]}
+          onChange={(imagePreviews) => s.set({ imagePreviews })}
+        />
+      </Row>
       <Row label={t('deletedMsgs')}>
         <Segmented value={s.deletedMode} options={[['strike', t('strike')], ['hide', t('hide')]]} onChange={(deletedMode) => s.set({ deletedMode })} />
       </Row>
@@ -209,18 +222,96 @@ function NotifyTab() {
       <Section title={t('watchlist')} hint={t('watchlistHint')}>
         <ListEditor items={s.watchUsers} onAdd={(v) => s.toggleList('watchUsers', v)} onRemove={(v) => s.toggleList('watchUsers', v)} placeholder={t('twitchName')} empty={t('nobodyListed')} />
       </Section>
-      <Toggle k="joinSound" label="joinSound" />
-      <Toggle k="mentionSound" label="mentionSound" />
       <Toggle k="desktopNotify" label="desktopNotify" hint="desktopNotifyHint" />
-      <Row label={t('volume')}>
-        <div className="flex items-center gap-3">
+      <Section title={t('soundsTitle')}>
+        <SoundPicker label={t('soundMention')} enabled={s.mentionSound} onEnabled={(v) => s.set({ mentionSound: v })} value={s.mentionSoundId} onChange={(v) => s.set({ mentionSoundId: v })} />
+        <SoundPicker label={t('soundJoin')} enabled={s.joinSound} onEnabled={(v) => s.set({ joinSound: v })} value={s.joinSoundId} onChange={(v) => s.set({ joinSoundId: v })} />
+        <Row label={t('volume')}>
           <SliderRow value={s.soundVolume} min={0} max={1} step={0.05} onChange={(v) => s.set({ soundVolume: v })} label={t('volume')} />
-          <Button size="sm" onClick={() => chime('mention', s.soundVolume)}>
-            {t('test')}
-          </Button>
-        </div>
-      </Row>
+        </Row>
+        <CustomSounds />
+      </Section>
     </>
+  )
+}
+
+/** Klangauswahl: Raster aus eingebauten und eigenen Klängen, Klick spielt und wählt */
+function SoundPicker({ label, enabled, onEnabled, value, onChange }: { label: string; enabled: boolean; onEnabled: (v: boolean) => void; value: string; onChange: (v: string) => void }) {
+  const custom = useSettings((s) => s.customSounds)
+  const all: [string, string][] = [...BUILTIN.map((b) => [b.id, b.name] as [string, string]), ...custom.map((c) => [`custom:${c.id}`, c.name] as [string, string])]
+  return (
+    <div className="border-b border-line py-3.5">
+      <div className="mb-2.5 flex items-center justify-between">
+        <span className="text-[13px] text-ink">{label}</span>
+        <Switch checked={enabled} onChange={onEnabled} />
+      </div>
+      <div className={cn('flex flex-wrap gap-1.5', !enabled && 'pointer-events-none opacity-40')}>
+        {all.map(([id, name]) => (
+          <button
+            key={id}
+            onClick={() => {
+              onChange(id)
+              void playSound(id)
+            }}
+            className={cn(
+              'flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] transition-colors',
+              value === id ? 'border-ink bg-ink font-medium text-ground' : 'border-line text-muted hover:border-muted hover:text-ink'
+            )}
+          >
+            <Play size={10} className={cn(value === id ? 'fill-current' : '')} />
+            {name}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function CustomSounds() {
+  const t = useT()
+  const custom = useSettings((s) => s.customSounds)
+  const input = useRef<HTMLInputElement>(null)
+  return (
+    <div className="pt-3.5">
+      <input
+        ref={input}
+        type="file"
+        accept="audio/*,.mp3,.wav,.ogg"
+        className="hidden"
+        onChange={async (e) => {
+          const f = e.target.files?.[0]
+          e.target.value = ''
+          if (!f) return
+          const r = await addCustomSound(f)
+          if (r === 'too-big') toast.error(t('soundTooBig'))
+          else if (r) {
+            toast.success(t('soundAdded'))
+            void playSound(r)
+          } else toast.error(tt('actionFailed'))
+        }}
+      />
+      <div className="flex items-center gap-3">
+        <Button size="sm" onClick={() => input.current?.click()}>
+          <Upload size={12} /> {t('soundAdd')}
+        </Button>
+        <span className="text-[11.5px] text-faint">{t('soundAddHint')}</span>
+      </div>
+      {custom.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {custom.map((c) => (
+            <span key={c.id} className="flex items-center gap-1 rounded-md border border-line py-0.5 pl-1 pr-1 text-[12.5px]">
+              <button title={t('soundPlay')} onClick={() => void playSound(`custom:${c.id}`)} className="p-0.5 text-faint hover:text-ink">
+                <Volume2 size={12} />
+              </button>
+              {c.name}
+              <button title={t('soundRemove')} onClick={() => removeCustomSound(c.id)} className="p-0.5 text-faint hover:text-ink">
+                <X size={11} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 

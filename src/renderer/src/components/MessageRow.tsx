@@ -5,6 +5,7 @@ import type { ChatMessage } from '@/lib/types'
 import { tokenize, type Token } from '@/lib/tokenize'
 import { findBadge } from '@/lib/emotes'
 import { cn, readableColor, timeShort } from '@/lib/util'
+import { imageUrl } from '@/lib/linkPreview'
 import { useT } from '@/lib/i18n'
 import { useSettings } from '@/store/settings'
 import { useShallow } from 'zustand/react/shallow'
@@ -39,6 +40,7 @@ const EmoteImg = memo(function EmoteImg({ tk }: { tk: Extract<Token, { t: 'emote
 
 function Tokens({ msg, emoteVersion }: { msg: ChatMessage; emoteVersion: number }) {
   const thirdParty = useSettings((s) => s.thirdPartyEmotes)
+  const previewMode = useSettings((s) => s.imagePreviews)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const tokens = useMemo(() => tokenize(msg.text, msg.twitchEmotes, msg.roomId, thirdParty), [msg.text, msg.twitchEmotes, msg.roomId, thirdParty, emoteVersion])
   return (
@@ -60,6 +62,7 @@ function Tokens({ msg, emoteVersion }: { msg: ChatMessage; emoteVersion: number 
               <a
                 key={i}
                 href={tk.href}
+                data-image={previewMode === 'hover' ? imageUrl(tk.href) ?? undefined : undefined}
                 className="text-ink underline decoration-faint underline-offset-2 hover:decoration-ink"
                 onClick={(e) => {
                   e.preventDefault()
@@ -74,6 +77,50 @@ function Tokens({ msg, emoteVersion }: { msg: ChatMessage; emoteVersion: number 
     </>
   )
 }
+
+/** Bilder hinter Links direkt im Chat (feste Höhe, damit die Liste beim Laden nicht springt) */
+const ImagePreviews = memo(function ImagePreviews({ text }: { text: string }) {
+  const mode = useSettings((s) => s.imagePreviews)
+  const urls = useMemo(() => {
+    if (mode !== 'inline' || !text.includes('.')) return []
+    const out: { href: string; img: string }[] = []
+    for (const w of text.split(/\s+/)) {
+      if (!/^(https?:\/\/|www\.)/i.test(w)) continue
+      const href = w.startsWith('http') ? w : `https://${w}`
+      const img = imageUrl(href)
+      if (img && !out.some((o) => o.img === img)) out.push({ href, img })
+      if (out.length >= 3) break
+    }
+    return out
+  }, [text, mode])
+  if (!urls.length) return null
+  return (
+    <div className="mb-1 mt-1 flex gap-2">
+      {urls.map((u) => (
+        <a
+          key={u.img}
+          href={u.href}
+          onClick={(e) => {
+            e.preventDefault()
+            void window.bridge.open(u.href)
+          }}
+          data-image={u.img}
+          className="group/img relative block h-28 overflow-hidden rounded-md border border-line bg-raised"
+        >
+          <img
+            src={u.img}
+            alt=""
+            loading="lazy"
+            draggable={false}
+            referrerPolicy="no-referrer"
+            className="h-full w-auto max-w-[280px] object-cover transition group-hover/img:brightness-110"
+            onError={(e) => ((e.currentTarget.parentElement as HTMLElement).style.display = 'none')}
+          />
+        </a>
+      ))}
+    </div>
+  )
+})
 
 function SystemLine({ msg }: { msg: ChatMessage }) {
   const t = useT()
@@ -212,6 +259,7 @@ export const MessageRow = memo(function MessageRow({ msg, alt, dark, emoteVersio
         {msg.bits ? <span className="ml-1.5 text-[11.5px] font-medium text-muted">{t('bits', { n: msg.bits })}</span> : null}
         {msg.deleted && <span className="ml-2 text-[11px] text-faint">({msg.timeoutInfo})</span>}
       </div>
+      {!msg.deleted && <ImagePreviews text={msg.text} />}
       {!msg.historical && !msg.deleted && (
         <div className="absolute right-2 top-0 hidden items-center rounded-md border border-line bg-ground shadow-sm group-hover:flex">
           <button title={t('reply')} className="p-1.5 text-faint hover:text-ink" onClick={reply}>
