@@ -5,6 +5,7 @@
   "description": "Twitch chat client that shows who is in chat, not just who is talking. Splits, 7TV/BTTV/FFZ emotes, EN/DE.",
   "main": "./out/main/index.js",
   "author": "coooooooollin",
+  "repository": "github:prodbycooooooollin-byte/lurk",
   "license": "MIT",
   "scripts": {
     "dev": "electron-vite dev",
@@ -14,7 +15,8 @@
     "dist": "npm run build && electron-builder",
     "dist:win": "npm run build && electron-builder --win",
     "dist:mac": "npm run build && electron-builder --mac",
-    "dist:linux": "npm run build && electron-builder --linux"
+    "dist:linux": "npm run build && electron-builder --linux",
+    "icon": "electron scripts/render-icon.cjs"
   },
   "devDependencies": {
     "@fontsource-variable/inter": "^5.3.0",

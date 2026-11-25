@@ -51,11 +51,15 @@ English by default, German built in (Settings → Appearance → Language).
 
 ## Signing in
 
-Reading works without an account. To chat:
+Reading works without an account. To chat, open Settings → Account and click **Sign in with Twitch**, then confirm in your browser.
 
-1. Register an app at [dev.twitch.tv/console/apps](https://dev.twitch.tv/console/apps/create) (redirect URL `http://localhost`, client type **Public**).
-2. Paste the client ID in Lurk under Settings → Account and click Sign in.
-3. Confirm the code in your browser.
+That one-click flow needs the app's Twitch client ID to be built in (one-time setup for whoever builds Lurk):
+
+1. Register an app at [dev.twitch.tv/console/apps](https://dev.twitch.tv/console/apps/create): OAuth redirect URL `http://localhost`, category *Chat Bot* or *Application Integration*, client type **Public**.
+2. Local builds: copy `.env.example` to `.env` and set `VITE_TWITCH_CLIENT_ID`.
+3. Releases: add the same ID as a repository variable `TWITCH_CLIENT_ID` (GitHub → Settings → Secrets and variables → Actions → Variables).
+
+The client ID is public, not a secret. Without it, Lurk falls back to asking for your own client ID or a token (Settings → Account → Advanced).
 
 ## Development
 
@@ -66,6 +70,8 @@ npm run typecheck
 npm test
 npm run dist       # build an installer for this OS (release/)
 ```
+
+Regenerate the app icon after editing `build/icon.svg`: `npm run icon`.
 
 Stack: Electron (main process, updater, networking), React 19 + TypeScript, Tailwind CSS, Radix UI, Framer Motion, TanStack Virtual, Zustand, cmdk, Lucide, Inter.
 
@@ -78,7 +84,7 @@ npm version patch          # bumps the version and creates the tag
 git push --follow-tags
 ```
 
-The GitHub Action builds Windows, macOS and Linux and publishes a release. Installed copies download the update in the background and offer "Install x.y.z" in the title bar.
+The GitHub Action builds Windows, macOS and Linux and publishes a release. Installed copies download the update in the background and offer "Install x.y.z" in the title bar. Auto-update only works for copies installed with `Lurk-Setup-x.y.z.exe`, not for an unpacked folder.
 
 Note: auto-update on macOS requires a signed app (Apple Developer certificate). Windows and Linux (AppImage) update without signing. Unsigned Windows builds show a SmartScreen warning on first launch ("More info → Run anyway").
 

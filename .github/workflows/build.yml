@@ -1,6 +1,7 @@
 name: Release
-# Neue Version veröffentlichen: Version in package.json erhöhen, dann
-#   git tag v1.0.1 && git push --tags
+# Neue Version veröffentlichen:
+#   npm version patch        (erhöht die Version und legt den Tag an)
+#   git push --follow-tags
 # Die Action baut Windows, macOS und Linux und legt alles als GitHub-Release ab.
 # Installierte Apps finden das Update dann automatisch.
 on:
@@ -28,6 +29,9 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+        env:
+          # Client-ID der Twitch-App (öffentlich): Repository → Settings → Secrets and variables → Actions → Variables
+          VITE_TWITCH_CLIENT_ID: ${{ vars.TWITCH_CLIENT_ID }}
       - run: npx electron-builder --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

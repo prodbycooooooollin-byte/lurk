@@ -179,8 +179,11 @@ function setupUpdater(): void {
   autoUpdater.on('update-available', (i) => sendUpdate({ state: 'available', version: i.version }))
   autoUpdater.on('download-progress', (p) => sendUpdate({ state: 'downloading', percent: Math.round(p.percent) }))
   autoUpdater.on('update-downloaded', (i) => sendUpdate({ state: 'ready', version: i.version }))
-  autoUpdater.on('error', (e) => sendUpdate({ state: 'error', message: String(e?.message ?? e) }))
-  const check = (): void => void autoUpdater.checkForUpdates().catch(() => undefined)
+  autoUpdater.on('error', (e) => {
+    console.error('[updater]', e)
+    sendUpdate({ state: 'error', message: String(e?.message ?? e) })
+  })
+  const check = (): void => void autoUpdater.checkForUpdates().catch((e) => console.error('[updater] check failed', e))
   setTimeout(check, 4000)
   setInterval(check, 1000 * 60 * 60 * 2)
 }

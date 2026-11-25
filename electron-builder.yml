@@ -26,4 +26,6 @@ linux:
   category: Network
 publish:
   provider: github
+  owner: prodbycooooooollin-byte
+  repo: lurk
   releaseType: release
