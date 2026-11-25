@@ -428,22 +428,26 @@ export function PresencePanel({ channel, overlay, onPinned }: { channel?: string
   const t = useT()
   const tab = useUi((u) => u.panelTab)
   const set = useUi((u) => u.set)
-  const radarOn = useSettings((s) => s.modRadar) !== 'off'
+  // Radar-Tab nur, wo das Radar auch arbeitet (als Mod oder auf "Überall" gestellt)
+  const radarMode = useSettings((s) => s.modRadar)
+  const isMod = useChat((s) => !!channel && !!s.channels[channel] && (s.channels[channel].me.mod || s.channels[channel].me.broadcaster))
+  const radarOn = radarMode === 'all' || (radarMode === 'mod' && isMod)
   const radarOpen = useRadar((r) => (channel ? (r.items[channel] ?? []).filter((i) => !i.handled).length : 0))
+  // "Publikum" ist eine Ansicht innerhalb von Stats
+  const shownTab: PanelTab = tab === 'audience' ? 'stats' : tab === 'radar' && !radarOn ? 'presence' : tab
   return (
     <aside className="flex w-[300px] shrink-0 flex-col overflow-hidden border-l border-line bg-ground">
       <div className="flex h-[52px] shrink-0 items-end justify-between border-b border-line pl-4 pr-2">
         <Tabs<PanelTab>
-          value={tab}
-          onChange={(v) => set({ panelTab: v })}
+          value={shownTab}
+          onChange={(v) => set({ panelTab: v === 'stats' && tab === 'audience' ? 'audience' : v })}
           items={[
             ['presence', t('tabPresence')],
             ['activity', t('tabActivity')],
             ['stats', t('tabStats')],
-            ['audience', t('tabAudience')],
             ...(radarOn ? ([['radar', radarOpen ? `${t('tabRadar')} · ${radarOpen}` : t('tabRadar')]] as [PanelTab, string][]) : [])
           ]}
-          className="min-w-0 gap-3.5 [&>button]:pb-3.5"
+          className="min-w-0 gap-5 [&>button]:pb-3.5"
         />
         {overlay ? (
           <Tip label={t('keepOpen')}>
@@ -467,16 +471,32 @@ export function PresencePanel({ channel, overlay, onPinned }: { channel?: string
       </div>
       {!channel ? (
         <div className="p-6 text-center text-[12.5px] text-faint">{t('pickChannel')}</div>
-      ) : tab === 'presence' ? (
+      ) : shownTab === 'presence' ? (
         <PresenceList key={channel} channel={channel} />
-      ) : tab === 'activity' ? (
+      ) : shownTab === 'activity' ? (
         <ActivityFeed key={channel} channel={channel} />
-      ) : tab === 'audience' ? (
-        <Audience key={channel} channel={channel} />
-      ) : tab === 'radar' ? (
+      ) : shownTab === 'radar' ? (
         <RadarFeed key={channel} channel={channel} />
       ) : (
-        <Stats key={channel} channel={channel} />
+        <>
+          <div className="flex shrink-0 gap-1 px-4 pt-3">
+            {(
+              [
+                ['stats', t('statsChat')],
+                ['audience', t('tabAudience')]
+              ] as [PanelTab, string][]
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                onClick={() => set({ panelTab: id })}
+                className={cn('rounded-full px-2.5 py-[3px] text-[11.5px] font-medium transition-colors', tab === id ? 'bg-raised text-ink' : 'text-faint hover:text-muted')}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {tab === 'audience' ? <Audience key={channel} channel={channel} /> : <Stats key={channel} channel={channel} />}
+        </>
       )}
     </aside>
   )

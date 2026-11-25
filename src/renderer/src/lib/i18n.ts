@@ -522,6 +522,7 @@ const en = {
   badgeWornIn: 'worn in #{c} {d}',
   badgesViaBhq: 'Full collection via BadgeHQ ↗',
   tabAudience: 'Audience',
+  statsChat: 'Chat',
   audWaiting: 'Waiting for the viewer list …',
   audEmpty: 'Nobody in chat right now.',
   audPeople: 'people in chat',
@@ -531,10 +532,10 @@ const en = {
   audWriting: 'Wrote this session',
   audLurking: 'Only watching',
   audLoyalty: 'Loyalty',
-  audLoyaltyHint: 'from Lurk’s visit history',
-  audRegular: 'Regulars (4+ visits)',
-  audReturning: 'Returning (2–3 visits)',
-  audFirst: 'First visit seen',
+  audLoyaltyHint: 'Based on chat logs (since when and in how many months someone wrote here), sub length, follow date and visits seen by Lurk.',
+  audRegular: 'Regulars (6+ months)',
+  audReturning: 'Returning',
+  audFirst: 'New here',
   audSilentRegulars: 'Show the {n} regulars who never write →',
   audSilentRegularsTitle: 'Regulars who only watch',
   audAge: 'Account age',
@@ -550,6 +551,9 @@ const en = {
   audMore: 'and {n} more',
   audLimited: 'Twitch is not sending this connection who joins and leaves, so Lurk only knows the people who wrote here and lurkers are missing. As a moderator Lurk loads the full viewer list via the Twitch API.',
   audPeopleLimited: 'people who wrote',
+  chatsHere: 'Chats here',
+  chatsHereSince: 'since {d} · {n} mo',
+  chatsHereHint: 'Wrote here in {n} different months (public chat logs)'
 }
 
 export type TKey = keyof typeof en
@@ -1058,6 +1062,7 @@ const de: Record<TKey, string> = {
   badgeWornIn: 'in #{c} getragen {d}',
   badgesViaBhq: 'Vollständige Sammlung über BadgeHQ ↗',
   tabAudience: 'Publikum',
+  statsChat: 'Chat',
   audWaiting: 'Warte auf die Zuschauerliste …',
   audEmpty: 'Gerade niemand im Chat.',
   audPeople: 'Leute im Chat',
@@ -1067,10 +1072,10 @@ const de: Record<TKey, string> = {
   audWriting: 'Hat in dieser Sitzung geschrieben',
   audLurking: 'Schaut nur zu',
   audLoyalty: 'Treue',
-  audLoyaltyHint: 'aus Lurks Besuchsverlauf',
-  audRegular: 'Stammgäste (4+ Besuche)',
-  audReturning: 'Wiederkehrend (2–3 Besuche)',
-  audFirst: 'Erster gesehener Besuch',
+  audLoyaltyHint: 'Aus den Chat-Logs (seit wann und in wie vielen Monaten jemand hier geschrieben hat), Sub-Dauer, Follow-Datum und Lurks Besuchen.',
+  audRegular: 'Stammgäste (6+ Monate)',
+  audReturning: 'Wiederkehrend',
+  audFirst: 'Neu hier',
   audSilentRegulars: 'Die {n} Stammgäste anzeigen, die nie schreiben →',
   audSilentRegularsTitle: 'Stammgäste, die nur zuschauen',
   audAge: 'Account-Alter',
@@ -1086,6 +1091,9 @@ const de: Record<TKey, string> = {
   audMore: 'und {n} weitere',
   audLimited: 'Twitch schickt dieser Verbindung nicht, wer rein- und rausgeht. Lurk kennt hier deshalb nur die Leute, die geschrieben haben, Lurker fehlen. Als Mod lädt Lurk die vollständige Zuschauerliste über die Twitch-API.',
   audPeopleLimited: 'Leute, die geschrieben haben',
+  chatsHere: 'Schreibt hier',
+  chatsHereSince: 'seit {d} · {n} Mon.',
+  chatsHereHint: 'In {n} verschiedenen Monaten hier geschrieben (öffentliche Chat-Logs)'
 }
 
 const dicts = { en, de }

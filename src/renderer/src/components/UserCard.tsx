@@ -17,6 +17,7 @@ import { getHistory, isRegular } from '@/lib/history'
 import { isBot } from '@/lib/bots'
 import { isCollectible, recordHistoric, useDexVersion, userBadges } from '@/lib/badgedex'
 import { useModChannels } from './RadarFeed'
+import { requestLoyalty, useLoyaltyVersion } from '@/lib/loyalty'
 import { Avatar, IconButton, Tip } from './ui'
 import { cn, durationSince, formatAge, formatNumber, readableColor, relTime, timeShort } from '@/lib/util'
 import { tokenize } from '@/lib/tokenize'
@@ -404,6 +405,7 @@ function CardBody({ card, pinned, setPinned, startDrag }: { card: UserCardState;
             <span>{relTime(p.lastMsgAt)}</span>
           </InfoRow>
         )}
+        <ChatHistoryRow channel={card.channel} login={card.login} />
         <InfoRow icon={<History size={13} />} label={t('lurkHistory')}>
           {hist ? (
             <Tip label={t('firstSeen', { d: fullDate(hist.f) ?? '' })}>
@@ -722,6 +724,23 @@ function Logs({ card }: { card: UserCardState }) {
         {t('logsMore')}
       </button>
     </>
+  )
+}
+
+/** Seit wann und wie regelmäßig jemand in diesem Kanal schreibt (öffentliche Chat-Logs) */
+function ChatHistoryRow({ channel, login }: { channel: string; login: string }) {
+  const t = useT()
+  useLoyaltyVersion()
+  const l = requestLoyalty(channel, login)
+  if (l && !l.logMonths) return null
+  return (
+    <InfoRow icon={<ScrollText size={13} />} label={t('chatsHere')} loading={!l}>
+      {l?.firstLog && (
+        <Tip label={t('chatsHereHint', { n: l.logMonths ?? 0 })}>
+          <span>{t('chatsHereSince', { d: new Date(l.firstLog).toLocaleDateString(undefined, { month: 'short', year: 'numeric' }), n: l.logMonths ?? 0 })}</span>
+        </Tip>
+      )}
+    </InfoRow>
   )
 }
 

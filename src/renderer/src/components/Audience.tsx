@@ -5,7 +5,8 @@ import { useUi } from '@/store/ui'
 import { useT } from '@/lib/i18n'
 import { cn, formatNumber, useThrottled } from '@/lib/util'
 import { getMeta, requestMeta, useMetaVersion } from '@/lib/avatars'
-import { allHistories, getHistory } from '@/lib/history'
+import { allHistories } from '@/lib/history'
+import { loyaltyTier, requestLoyalty, useLoyaltyVersion } from '@/lib/loyalty'
 import { isBot } from '@/lib/bots'
 import { openUserCard } from './MessageRow'
 import { UserAvatar } from './UserAvatar'
@@ -13,6 +14,8 @@ import type { PresenceUser } from '@/lib/types'
 
 /** höchstens so viele Konten nach dem Alter fragen (IVR, 40 pro Anfrage) */
 const AGE_SAMPLE = 800
+/** höchstens so viele Leute nach Treue fragen (2 Anfragen pro Person) */
+const LOYALTY_SAMPLE = 300
 
 type Group = { id: string; label: string; logins: string[]; tone: string }
 
@@ -30,6 +33,7 @@ export function Audience({ channel }: { channel: string }) {
   const helix = useChat((s) => !!s.channels[channel]?.helixPresence)
   const [open, setOpen] = useState<string | null>(null)
   const metaV = useThrottled(useMetaVersion(), 1500)
+  const loyaltyV = useThrottled(useLoyaltyVersion(), 1500)
 
   const present = useMemo(() => {
     const ch = useChat.getState().channels[channel]
@@ -45,7 +49,10 @@ export function Audience({ channel }: { channel: string }) {
   const sample = useMemo(() => [...people].sort((a, b) => (b.joinedAt ?? 0) - (a.joinedAt ?? 0)).slice(0, AGE_SAMPLE), [people])
   useEffect(() => {
     for (const p of sample) requestMeta(p.login)
-  }, [sample])
+    // Treue: wer geschrieben hat zuerst (für die gibt es Logs), dann der Rest
+    const byActivity = [...sample].sort((a, b) => b.msgCount - a.msgCount).slice(0, LOYALTY_SAMPLE)
+    for (const p of byActivity) requestLoyalty(channel, p.login)
+  }, [sample, channel])
 
   const groups = useMemo(() => {
     const writing: string[] = []
@@ -53,13 +60,17 @@ export function Audience({ channel }: { channel: string }) {
     const first: string[] = []
     const returning: string[] = []
     const regular: string[] = []
+    let loyaltyKnown = 0
     const age = { d30: [] as string[], y1: [] as string[], y5: [] as string[], old: [] as string[] }
     let ageKnown = 0
     const now = Date.now()
     for (const p of people) {
       ;(p.msgCount > 0 ? writing : lurking).push(p.login)
-      const h = getHistory(channel, p.login)
-      ;(!h || h.v <= 1 ? first : h.v < 4 ? returning : regular).push(p.login)
+      const tier = loyaltyTier(channel, p.login)
+      if (tier) {
+        loyaltyKnown++
+        ;(tier === 'regular' ? regular : tier === 'returning' ? returning : first).push(p.login)
+      }
       const c = getMeta(p.login)?.createdAt
       if (c) {
         ageKnown++
@@ -83,10 +94,11 @@ export function Audience({ channel }: { channel: string }) {
         { id: 'y5', label: t('audAgeY5'), logins: age.y5, tone: 'bg-ink/35' },
         { id: 'old', label: t('audAgeOld'), logins: age.old, tone: 'bg-ink/70' }
       ] as Group[],
-      ageKnown
+      ageKnown,
+      loyaltyKnown
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [people, channel, t, metaV])
+  }, [people, channel, t, metaV, loyaltyV])
 
   // Lurker unter den Stammgästen – die interessanteste Gruppe für Streamer
   const silentRegulars = groups.loyalty[0].logins.filter((l) => groups.activity[0].logins.includes(l))
@@ -136,8 +148,9 @@ export function Audience({ channel }: { channel: string }) {
         </Section>
       )}
 
-      <Section title={t('audLoyalty')} hint={t('audLoyaltyHint')}>
-        <Bar groups={groups.loyalty} total={total} open={open} onToggle={toggle} />
+      <Section title={t('audLoyalty')} hint={t('audAgeHint', { n: formatNumber(groups.loyaltyKnown), t: formatNumber(total) })}>
+        <Bar groups={groups.loyalty} total={groups.loyaltyKnown} open={open} onToggle={toggle} />
+        <div className="mt-1.5 text-[11px] leading-snug text-faint">{t('audLoyaltyHint')}</div>
         {!limited && silentRegulars.length > 0 && (
           <button onClick={() => toggle('silent')} className={cn('mt-2 text-[11.5px] hover:text-ink', open === 'silent' ? 'text-ink' : 'text-faint')}>
             {t('audSilentRegulars', { n: silentRegulars.length })}
