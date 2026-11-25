@@ -7,6 +7,8 @@ export default defineConfig({
   preload: { plugins: [externalizeDepsPlugin()] },
   renderer: {
     resolve: { alias: { '@': resolve('src/renderer/src') } },
-    plugins: [react()]
+    plugins: [react()],
+    // LURK_PROFILE=1 npm run build → lesbare Funktionsnamen im CPU-Profil
+    build: process.env.LURK_PROFILE ? { minify: false, sourcemap: true } : undefined
   }
 })

@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { useChat } from '@/store/chat'
 
 /*
@@ -7,9 +7,9 @@ import { useChat } from '@/store/chat'
 
   Geometrie (viewBox 40×40)
     Sprechblase  x 3–37, y 17–34, Radius 8.5, Schwänzchen unten links
-    Augen        Mitte (14.8 | 25.2, 13.6), r 4.85 × 6.5, unten bei y 15.4 abgeschnitten
+    Augen        Mitte (14.8 | 25.2, 13.6), r 4.85 × 6.5, die Unterkante verdeckt der Rand der Blase
                  → 1.6 Luft über der Blase, die Augen "liegen" auf der Kante
-    Pupillen     r 2.6, ausgestanzt (das Zeichen funktioniert auf jedem Hintergrund)
+    Pupillen     r 2.6, in Hintergrundfarbe (pupilColor)
 
   Bewegung: gedämpfte Federn, per requestAnimationFrame direkt ins SVG geschrieben
   (kein React-Render pro Frame). Die Schleife schläft, sobald alles zur Ruhe kommt.
@@ -36,6 +36,8 @@ interface Props {
   live?: boolean
   /** beim Erscheinen hinter der Blase hervorgucken */
   peek?: boolean
+  /** Farbe von Pupillen und Lücke = Hintergrund, auf dem das Zeichen steht */
+  pupilColor?: string
   className?: string
 }
 
@@ -61,8 +63,7 @@ class Spring {
   }
 }
 
-export function LurkLogo({ size = 16, live = false, peek = false, className }: Props) {
-  const uid = useId().replace(/:/g, '')
+export function LurkLogo({ size = 16, live = false, peek = false, className, pupilColor = 'rgb(var(--ground))' }: Props) {
   const svgRef = useRef<SVGSVGElement>(null)
   const headRef = useRef<SVGGElement>(null)
   const whiteRefs = useRef<(SVGEllipseElement | null)[]>([])
@@ -158,7 +159,7 @@ export function LurkLogo({ size = 16, live = false, peek = false, className }: P
       }
     }
     const schedule = (): void => {
-      if (!raf) raf = requestAnimationFrame(tick)
+      if (!raf && !document.hidden) raf = requestAnimationFrame(tick)
     }
     kick.current = schedule
 
@@ -215,52 +216,51 @@ export function LurkLogo({ size = 16, live = false, peek = false, className }: P
     }
   }, [live, peek])
 
+  // Keine SVG-Maske und kein Clip-Pfad: die zwangen Chromium bei jeder Augenbewegung zu teurem
+  // Neu-Rastern und drückten die ganze App auf 30 FPS. Stattdessen: Pupillen in Hintergrundfarbe,
+  // und die Sprechblase bekommt einen Rand in Hintergrundfarbe, der die Unterkante der Augen verdeckt.
+  // Eigene GPU-Ebene (will-change), damit die Animation nichts anderes neu zeichnen lässt.
   return (
-    <svg ref={svgRef} width={size} height={size} viewBox="0 0 40 40" aria-label="Lurk" role="img" className={className} style={live ? { cursor: 'pointer', overflow: 'visible' } : undefined}>
-      <defs>
-        <clipPath id={`${uid}-ledge`}>
-          <rect x="-4" y="-8" width="48" height={LEDGE + 8} />
-        </clipPath>
-        <mask id={`${uid}-pupils`} maskUnits="userSpaceOnUse" x="-4" y="-8" width="48" height="52">
-          <rect x="-4" y="-8" width="48" height="52" fill="#fff" />
-          {EYES.map((cx, i) => (
-            <circle
-              key={cx}
-              ref={(n) => {
-                pupilRefs.current[i] = n
-              }}
-              cx={cx + 1.2}
-              cy={EYE_Y - 1.4}
-              r={PUPIL_R}
-              fill="#000"
-            />
-          ))}
-        </mask>
-      </defs>
-
-      {/* Augen hinter der Kante der Sprechblase */}
-      <g clipPath={`url(#${uid}-ledge)`}>
-        <g ref={headRef} transform={peek ? 'translate(0 12)' : undefined}>
-          <g mask={`url(#${uid}-pupils)`}>
-            {EYES.map((cx, i) => (
-              <ellipse
-                key={cx}
-                ref={(n) => {
-                  whiteRefs.current[i] = n
-                }}
-                cx={cx}
-                cy={EYE_Y}
-                rx={EYE_RX}
-                ry={EYE_RY}
-                fill="currentColor"
-              />
-            ))}
-          </g>
-        </g>
+    <svg
+      ref={svgRef}
+      width={size}
+      height={size}
+      viewBox="0 0 40 40"
+      aria-label="Lurk"
+      role="img"
+      className={className}
+      style={{ overflow: 'visible', ...(live ? { cursor: 'pointer', willChange: 'transform', contain: 'layout paint' } : null) }}
+    >
+      <g ref={headRef} transform={peek ? 'translate(0 12)' : undefined}>
+        {EYES.map((cx, i) => (
+          <ellipse
+            key={cx}
+            ref={(n) => {
+              whiteRefs.current[i] = n
+            }}
+            cx={cx}
+            cy={EYE_Y}
+            rx={EYE_RX}
+            ry={EYE_RY}
+            fill="currentColor"
+          />
+        ))}
+        {EYES.map((cx, i) => (
+          <circle
+            key={cx}
+            ref={(n) => {
+              pupilRefs.current[i] = n
+            }}
+            cx={cx + 1.2}
+            cy={EYE_Y - 1.4}
+            r={PUPIL_R}
+            fill={pupilColor}
+          />
+        ))}
       </g>
 
-      {/* die Sprechblase: der Chat, über den geschaut wird */}
-      <path d={BUBBLE_PATH} fill="currentColor" />
+      {/* die Sprechblase: der Chat, über den geschaut wird. Der Rand (unter der Füllung) schafft die Lücke zu den Augen. */}
+      <path d={BUBBLE_PATH} fill="currentColor" stroke={pupilColor} strokeWidth={(17 - LEDGE) * 2} paintOrder="stroke" strokeLinejoin="round" />
 
       {live && (
         <text ref={zRef} x="32" y="8" fontSize="7" fontWeight="700" fill="currentColor" style={{ opacity: 0, fontFamily: 'inherit' }}>

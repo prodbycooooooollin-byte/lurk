@@ -9,6 +9,7 @@ import { ChatSplit } from './components/ChatSplit'
 import { SidePanel } from './components/PresencePanel'
 import { UserCard } from './components/UserCard'
 import { EmotePreview } from './components/EmotePreview'
+import { FpsMeter } from './components/FpsMeter'
 import { SettingsDialog } from './components/SettingsDialog'
 import { CommandPalette, JoinDialog, addAndJoin } from './components/CommandPalette'
 import { MentionsView } from './components/MentionsView'
@@ -151,6 +152,7 @@ export default function App() {
       </div>
       <UserCard />
       <EmotePreview />
+      <FpsMeter />
       <SettingsDialog />
       <CommandPalette />
       <JoinDialog />

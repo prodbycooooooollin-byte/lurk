@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 5173
+    },
+    {
+      "name": "lurk-prod-profile",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["C:/Users/Collin/.claude/mods/live-vorschau/live-server.js", "C:/Users/Collin/AppData/Local/Temp/claude/90d2923e69e9b7aa/5c285fbc-688b-4e68-81ef-cc3134c0932c/scratchpad/prof", "5180"],
+      "port": 5180
     }
   ]
 }

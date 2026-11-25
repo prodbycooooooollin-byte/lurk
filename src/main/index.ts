@@ -74,6 +74,18 @@ function createWindow(): void {
     }
   })
 
+  // Nur für Performance-Tests: LURK_FPS_PROBE=1 misst nach dem Start die Bildrate und beendet die App.
+  if (process.env['LURK_FPS_PROBE']) {
+    win.webContents.once('did-finish-load', () => {
+      setTimeout(async () => {
+        const js = `new Promise(res=>{const d=document.createElement('div');d.style.cssText='position:fixed;left:0;bottom:0;width:8px;height:8px;background:red;z-index:9999';document.body.appendChild(d);let n=0,x=0;const s=performance.now();function f(t){n++;x=(x+2)%300;d.style.transform='translateX('+x+'px)'; if(t-s<3000) requestAnimationFrame(f); else {d.remove();res(Math.round(n/3))}} requestAnimationFrame(f)})`
+        const fps = await win?.webContents.executeJavaScript(js)
+        console.log('LURK_FPS', fps)
+        app.quit()
+      }, 4000)
+    })
+  }
+
   if (process.env['ELECTRON_RENDERER_URL']) void win.loadURL(process.env['ELECTRON_RENDERER_URL'])
   else void win.loadFile(join(__dirname, '../renderer/index.html'))
 }

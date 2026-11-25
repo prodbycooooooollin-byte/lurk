@@ -82,11 +82,11 @@ export function MessageList({ messages, canMod, emptyText }: Props) {
 
   return (
     <div className="relative min-h-0 flex-1" onMouseMove={() => !hovered && setHovered(true)} onMouseLeave={() => setHovered(false)}>
-      <div ref={parentRef} onScroll={onScroll} className="h-full overflow-y-auto overflow-x-hidden pb-2">
+      <div ref={parentRef} onScroll={onScroll} className="h-full overflow-y-auto overflow-x-hidden pb-2 [contain:strict]">
         {list.length === 0 && emptyText && <div className="flex h-full items-center justify-center px-8 text-center text-[13px] text-faint">{emptyText}</div>}
         <div style={{ height: virt.getTotalSize(), position: 'relative' }}>
           {virt.getVirtualItems().map((item) => (
-            <div key={item.key} data-index={item.index} ref={virt.measureElement} style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${item.start}px)` }}>
+            <div key={item.key} data-index={item.index} ref={virt.measureElement} style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${item.start}px)`, contain: 'layout paint style' }}>
               <MessageRow msg={list[item.index]} alt={alternate && item.index % 2 === 1} dark={dark} emoteVersion={emoteVersion} canMod={canMod} />
             </div>
           ))}

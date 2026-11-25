@@ -53,8 +53,16 @@ export function readableColor(color: string | undefined, login: string, dark: bo
   return out
 }
 
+// Intl-Formatierer sind teuer anzulegen – einmal pro Sprache/Variante cachen (war der größte JS-Posten im Profil)
+const timeFormats = new Map<string, Intl.DateTimeFormat>()
 export function timeShort(ts: number, seconds = false): string {
-  return new Date(ts).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', ...(seconds ? { second: '2-digit' } : {}) })
+  const key = `${locale()}|${seconds}`
+  let f = timeFormats.get(key)
+  if (!f) {
+    f = new Intl.DateTimeFormat(locale(), { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', ...(seconds ? { second: '2-digit' } : {}) })
+    timeFormats.set(key, f)
+  }
+  return f.format(ts)
 }
 
 export function relTime(ts: number): string {
@@ -87,9 +95,12 @@ export function formatAge(iso?: string | null): string {
   return rm ? t('yearsMonths', { y: ys, m: rm }) : ys
 }
 
+const numberFormats = new Map<string, Intl.NumberFormat>()
 export function formatNumber(n?: number): string {
   if (n === undefined) return '–'
-  return n.toLocaleString(locale())
+  let f = numberFormats.get(locale())
+  if (!f) numberFormats.set(locale(), (f = new Intl.NumberFormat(locale())))
+  return f.format(n)
 }
 
 export function formatDuration(sec: number): string {

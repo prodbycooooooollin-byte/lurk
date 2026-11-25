@@ -104,7 +104,7 @@ function PresenceList({ channel }: { channel: string }) {
           </button>
         ))}
       </div>
-      <div ref={parentRef} className="min-h-0 flex-1 overflow-y-auto">
+      <div ref={parentRef} className="min-h-0 flex-1 overflow-y-auto [contain:strict]">
         {list.length === 0 && <div className="px-6 py-10 text-center text-[12.5px] text-faint">{q ? t('nobodyName') : t('nobodyHere')}</div>}
         <div style={{ height: virt.getTotalSize(), position: 'relative' }}>
           {virt.getVirtualItems().map((it) => {
