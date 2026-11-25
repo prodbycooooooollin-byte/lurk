@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Search, Star, Pin, PanelRightClose, X } from 'lucide-react'
+import { Search, Star, Pin, PanelRightClose, PanelRightOpen, X } from 'lucide-react'
 import { useChat } from '@/store/chat'
 import { useUi, type PanelTab } from '@/store/ui'
 import { useSettings } from '@/store/settings'
@@ -258,10 +258,27 @@ function Stats({ channel }: { channel: string }) {
 /** Rechte Seite: eingeklappt eine Mini-Leiste mit den wichtigsten Zahlen, beim Hovern das volle Panel als Overlay, gepinnt fest daneben. */
 export function SidePanel({ channel }: { channel: string }) {
   const pinned = useUi((u) => u.panelOpen)
-  const hover = useHoverIntent(200, 260)
+  const cardOpen = useUi((u) => !!u.userCard)
+  const hover = useHoverIntent(340, 300)
+  const inside = useRef(false)
+  // Solange eine Infocard offen ist (z. B. aus der Liste geöffnet), bleibt das Overlay stehen
+  const { leave } = hover
+  useEffect(() => {
+    if (!cardOpen && !inside.current) leave()
+  }, [cardOpen, leave])
   if (pinned) return <PresencePanel channel={channel} />
   return (
-    <div className="relative w-[60px] shrink-0" onMouseEnter={hover.enter} onMouseLeave={hover.leave}>
+    <div
+      className="relative w-[60px] shrink-0"
+      onMouseEnter={() => {
+        inside.current = true
+        hover.enter()
+      }}
+      onMouseLeave={() => {
+        inside.current = false
+        if (!useUi.getState().userCard) hover.leave()
+      }}
+    >
       <MiniPanel channel={channel} />
       <AnimatePresence>
         {hover.hover && (
@@ -333,13 +350,7 @@ function MiniPanel({ channel }: { channel: string }) {
   const presence = useChat.getState().channels[channel]?.presence
 
   return (
-    <aside
-      className="flex h-full w-[60px] cursor-pointer flex-col items-center border-l border-line pt-3"
-      onClick={(e) => {
-        if ((e.target as HTMLElement).closest('[data-join]')) return
-        set({ panelOpen: true })
-      }}
-    >
+    <aside className="flex h-full w-[60px] flex-col items-center border-l border-line pt-3">
       <MiniStat value={compact(presentCount)} label={t('statInChat')} dot="bg-join" />
       <MiniStat value={compact(lurking)} label={t('statQuiet')} />
       <MiniStat value={compact(fresh)} label={t('filterNew')} />
@@ -369,6 +380,13 @@ function MiniPanel({ channel }: { channel: string }) {
             )
           })}
         </AnimatePresence>
+      </div>
+      <div className="mt-auto pb-2.5">
+        <Tip label={t('keepOpen')} side="left" shortcut="Ctrl J">
+          <IconButton onClick={() => set({ panelOpen: true })}>
+            <PanelRightOpen size={15} strokeWidth={1.75} />
+          </IconButton>
+        </Tip>
       </div>
     </aside>
   )

@@ -17,7 +17,7 @@ export function ChannelRail() {
   const [seenMentions, setSeenMentions] = useState(0)
   const active = ui.view === 'chat' ? ui.splits[ui.focused] : undefined
   const pinned = !ui.railCollapsed
-  const hover = useHoverIntent()
+  const hover = useHoverIntent(340, 260)
   // eingeklappt: 52 px breit, beim Hovern fährt die volle Liste als Overlay über den Chat
   const expanded = pinned || hover.hover
   const floating = !pinned && hover.hover

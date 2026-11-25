@@ -1,6 +1,6 @@
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { motion } from 'framer-motion'
-import { X, ExternalLink, Star, EyeOff, AtSign, Copy, Heart, Gem, Radio, CalendarDays, Users, MessageSquare, Shield, StickyNote, Check } from 'lucide-react'
+import { X, ExternalLink, Star, EyeOff, AtSign, Copy, Heart, Gem, Radio, CalendarDays, Users, MessageSquare, Shield, StickyNote, Check, Pin } from 'lucide-react'
 import { useUi } from '@/store/ui'
 import { useChat } from '@/store/chat'
 import { useSettings } from '@/store/settings'
@@ -53,6 +53,9 @@ export function UserCard() {
   const [note, setNote] = useState('')
   const [tab, setTab] = useState<Tab>('messages')
   const [copied, setCopied] = useState(false)
+  // angepinnt: bleibt offen, auch wenn man daneben klickt
+  const [pinned, setPinned] = useState(false)
+  const cardRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!card) return
@@ -61,6 +64,7 @@ export function UserCard() {
     setFailed(false)
     setSub(undefined)
     setTab('messages')
+    setPinned(false)
     setNote(useSettings.getState().notes[card.login] ?? '')
     let alive = true
     void ivrUsers([card.login]).then((r) => {
@@ -96,6 +100,24 @@ export function UserCard() {
       window.removeEventListener('keydown', esc)
     }
   }, [set])
+
+  // Klick außerhalb schließt die Karte (außer angepinnt). Klicks auf Namen öffnen ohnehin eine neue.
+  useEffect(() => {
+    if (!card || pinned) return
+    const down = (e: MouseEvent): void => {
+      const el = e.target as HTMLElement | null
+      if (!el || cardRef.current?.contains(el)) return
+      // Menüs, Tooltips und Dialoge (Portale) nicht als "daneben" werten
+      if (el.closest('[data-radix-popper-content-wrapper],[role="menu"],[role="dialog"],[data-sonner-toast]')) return
+      set({ userCard: null })
+    }
+    // erst nach dem öffnenden Klick scharf schalten
+    const t = window.setTimeout(() => window.addEventListener('mousedown', down, true), 0)
+    return () => {
+      window.clearTimeout(t)
+      window.removeEventListener('mousedown', down, true)
+    }
+  }, [card, pinned, set])
 
   const msgs = useMemo(() => {
     if (!card || !messages) return []
@@ -137,6 +159,7 @@ export function UserCard() {
 
   return (
     <motion.div
+      ref={cardRef}
       initial={{ opacity: 0, y: 6, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.16, ease: [0.2, 0.8, 0.2, 1] }}
@@ -156,6 +179,11 @@ export function UserCard() {
       >
         <div className="absolute inset-x-0 bottom-0 h-px bg-line/70" />
         <div className="absolute right-2 top-2 flex items-center gap-0.5 rounded-lg bg-ground/55 p-0.5 backdrop-blur-md">
+          <Tip label={pinned ? t('unpinCard') : t('pinCard')}>
+            <IconButton className={cn(pinned ? 'text-ink' : 'text-muted')} onClick={() => setPinned((v) => !v)}>
+              <Pin size={14} strokeWidth={1.75} className={cn(pinned && 'fill-current')} />
+            </IconButton>
+          </Tip>
           <Tip label={t('openOnTwitch')}>
             <IconButton className="text-muted" onClick={() => void window.bridge.open(`https://www.twitch.tv/${card.login}`)}>
               <ExternalLink size={14} strokeWidth={1.75} />

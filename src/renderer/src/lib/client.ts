@@ -405,7 +405,17 @@ function handle(m: IrcMessage, historical = false): void {
       })
       if (s.watchUsers.includes(login)) {
         startleLogo()
-        toast(t('watchJoined', { u: login, c }), { description: t('fromWatchlist') })
+        toast(t('watchJoined', { u: login, c }), {
+          description: t('fromWatchlist'),
+          action: {
+            label: t('showUser'),
+            onClick: () => {
+              const ui = useUi.getState()
+              ui.showChannel(c)
+              ui.set({ userCard: { login, channel: c, x: Math.max(12, window.innerWidth / 2 - 180), y: 110 } })
+            }
+          }
+        })
         if (s.joinSound) chime('join', s.soundVolume)
         notifyDesktop(t('watchedHere'), t('watchJoined', { u: login, c }))
       }

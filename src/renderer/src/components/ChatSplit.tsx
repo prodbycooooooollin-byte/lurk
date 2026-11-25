@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import * as DM from '@radix-ui/react-dropdown-menu'
 import { Search, MoreHorizontal, X, ExternalLink, Download, RefreshCw, Columns2, Eraser, MonitorPlay } from 'lucide-react'
 import { MessageList } from './MessageList'
@@ -34,6 +34,9 @@ function Stat({ value, label, dot }: { value: string; label: string; dot?: strin
   )
 }
 
+/** Letzte Nachricht, die pro Kanal sichtbar war (Kanal offen und Fenster im Fokus) */
+const lastSeen = new Map<string, string>()
+
 export function ChatSplit({ channel, index, focused, multi }: { channel: string; index: number; focused: boolean; multi: boolean }) {
   const ch = useChat((s) => s.channels[channel])
   const ui = useUi()
@@ -44,6 +47,22 @@ export function ChatSplit({ channel, index, focused, multi }: { channel: string;
   useEffect(() => {
     if (focused) markRead(channel)
   }, [focused, channel, ch?.unread])
+
+  // "Neue Nachrichten"-Linie: beim Zurückkommen (Kanal wieder offen oder Fenster wieder im Fokus)
+  // ab der zuletzt gesehenen Nachricht. Solange man zuschaut, wird "gesehen" laufend nachgezogen.
+  const windowFocused = useChat((s) => s.windowFocused)
+  const lastId = ch?.messages[ch.messages.length - 1]?.id
+  const [marker, setMarker] = useState<string | null>(null)
+  const wasWatching = useRef(false)
+  useEffect(() => {
+    const watching = windowFocused
+    if (watching && !wasWatching.current) {
+      const seen = lastSeen.get(channel)
+      setMarker(seen && seen !== lastId ? seen : null)
+    }
+    if (watching && lastId) lastSeen.set(channel, lastId)
+    wasWatching.current = watching
+  }, [windowFocused, lastId, channel])
 
   const messages = useMemo(() => {
     if (!ch) return []
@@ -193,7 +212,7 @@ export function ChatSplit({ channel, index, focused, multi }: { channel: string;
           {query && <span className="text-[12px] text-faint">{t('results', { n: messages.length })}</span>}
         </div>
       )}
-      <MessageList messages={messages} canMod={canMod} emptyText={searchOpen && query ? t('noResults') : ch.joined ? t('quiet') : t('connectingTo', { c: channel })} />
+      <MessageList messages={messages} canMod={canMod} markerId={searchOpen && query ? null : marker} onMarkerClear={() => setMarker(null)} emptyText={searchOpen && query ? t('noResults') : ch.joined ? t('quiet') : t('connectingTo', { c: channel })} />
       <Composer channel={channel} />
     </section>
   )

@@ -9,6 +9,7 @@ import { useChat } from '@/store/chat'
 import { useUi } from '@/store/ui'
 import { useAuth } from '@/store/auth'
 import { cn } from '@/lib/util'
+import { signInWithTwitch } from '@/lib/login'
 
 type Suggestion = { kind: 'emote'; name: string; url: string; source: string } | { kind: 'user'; name: string } | { kind: 'cmd'; name: string; args: string; help: string }
 
@@ -170,7 +171,7 @@ export function Composer({ channel }: { channel: string }) {
     return (
       <div className="flex items-center justify-between gap-3 border-t border-line px-4 py-3 text-[12.5px] text-faint">
         <span>{t('anonRead')}</span>
-        <Button variant="primary" size="sm" onClick={() => setUi({ settingsOpen: true, settingsTab: 'account' })}>
+        <Button variant="primary" size="sm" onClick={() => void signInWithTwitch()}>
           {t('signIn')}
         </Button>
       </div>
