@@ -4,7 +4,7 @@ import * as Slider from '@radix-ui/react-slider'
 import { X, Trash2, Plus, Copy, ExternalLink, Loader2, Volume2 } from 'lucide-react'
 import { useUi } from '@/store/ui'
 import { useSettings, type Settings } from '@/store/settings'
-import { useAuth } from '@/store/auth'
+import { useAuth, BUILT_IN_CLIENT_ID } from '@/store/auth'
 import { startDeviceFlow, pollDeviceToken, validateToken, type DeviceCode } from '@/lib/api'
 import { applyAuth } from '@/lib/client'
 import { useT, t as tt, LANGS, type TKey } from '@/lib/i18n'
@@ -251,7 +251,8 @@ function Step({ n, children }: { n: number; children: ReactNode }) {
 function AccountTab() {
   const t = useT()
   const a = useAuth()
-  const [clientId, setClientId] = useState(a.clientId)
+  const [clientId, setClientId] = useState(a.clientId || BUILT_IN_CLIENT_ID)
+  const [advanced, setAdvanced] = useState(!BUILT_IN_CLIENT_ID)
   const [code, setCode] = useState<DeviceCode | null>(null)
   const [busy, setBusy] = useState(false)
   const [manual, setManual] = useState('')
@@ -264,8 +265,8 @@ function AccountTab() {
     []
   )
 
-  const start = async (): Promise<void> => {
-    const id = clientId.trim()
+  const start = async (useBuiltIn = false): Promise<void> => {
+    const id = useBuiltIn ? BUILT_IN_CLIENT_ID : clientId.trim()
     if (!id) return
     a.set({ clientId: id })
     setBusy(true)
@@ -336,6 +337,55 @@ function AccountTab() {
     )
   }
 
+  const codeBox = code && (
+    <div className="rounded-lg border border-line p-4">
+      <div className="text-[12px] text-faint">{t('confirmCode')}</div>
+      <div className="mt-1.5 flex items-center gap-3">
+        <span className="select-text text-[24px] font-semibold tabular-nums tracking-[0.18em]">{code.user_code}</span>
+        <Button size="sm" onClick={() => void navigator.clipboard.writeText(code.user_code)}>
+          <Copy size={12} /> {t('copy')}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={() => void window.bridge.open(code.verification_uri)}>
+          <ExternalLink size={12} /> {t('openPage')}
+        </Button>
+      </div>
+      <div className="mt-3 flex items-center gap-2 text-[12px] text-faint">
+        <Loader2 size={12} className="animate-spin" /> {t('waiting')}
+        <button
+          className="ml-auto hover:text-ink"
+          onClick={() => {
+            polling.current = false
+            setCode(null)
+          }}
+        >
+          {t('cancel')}
+        </button>
+      </div>
+    </div>
+  )
+
+  if (BUILT_IN_CLIENT_ID && !advanced) {
+    return (
+      <div className="space-y-5 py-4">
+        <p className="text-[13px] leading-relaxed text-muted">{t('accIntroSimple')}</p>
+        {!code && (
+          <button
+            onClick={() => void start(true)}
+            disabled={busy}
+            className="flex h-11 w-full items-center justify-center gap-2.5 rounded-lg bg-[#9146FF] text-[14px] font-semibold text-white transition hover:bg-[#7c3aed] disabled:opacity-60"
+          >
+            {busy ? <Loader2 size={16} className="animate-spin" /> : <TwitchGlyph />}
+            {t('signInTwitch')}
+          </button>
+        )}
+        {codeBox}
+        <button onClick={() => setAdvanced(true)} className="text-[12px] text-faint hover:text-muted">
+          {t('advancedSignIn')}
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-5 py-4">
       <p className="text-[13px] leading-relaxed text-muted">{t('accIntro')}</p>
@@ -359,32 +409,7 @@ function AccountTab() {
           {busy && <Loader2 size={13} className="animate-spin" />} {t('signIn')}
         </Button>
       </div>
-      {code && (
-        <div className="rounded-lg border border-line p-4">
-          <div className="text-[12px] text-faint">{t('confirmCode')}</div>
-          <div className="mt-1.5 flex items-center gap-3">
-            <span className="select-text text-[24px] font-semibold tabular-nums tracking-[0.18em]">{code.user_code}</span>
-            <Button size="sm" onClick={() => void navigator.clipboard.writeText(code.user_code)}>
-              <Copy size={12} /> {t('copy')}
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => void window.bridge.open(code.verification_uri)}>
-              <ExternalLink size={12} /> {t('openPage')}
-            </Button>
-          </div>
-          <div className="mt-3 flex items-center gap-2 text-[12px] text-faint">
-            <Loader2 size={12} className="animate-spin" /> {t('waiting')}
-            <button
-              className="ml-auto hover:text-ink"
-              onClick={() => {
-                polling.current = false
-                setCode(null)
-              }}
-            >
-              {t('cancel')}
-            </button>
-          </div>
-        </div>
-      )}
+      {codeBox}
       <details className="border-t border-line pt-4 text-[13px]">
         <summary className="cursor-pointer text-faint hover:text-muted">{t('pasteToken')}</summary>
         <div className="mt-3 flex gap-2">
@@ -395,6 +420,14 @@ function AccountTab() {
         </div>
       </details>
     </div>
+  )
+}
+
+function TwitchGlyph() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M4.3 2 3 5.4v13.8h4.7V22h2.6l2.8-2.8h3.8L22 14.1V2H4.3Zm15.9 11.3-3 3h-4.7l-2.6 2.6v-2.6H5.9V3.8h14.3v9.5ZM16.6 7.1v5.2h-1.8V7.1h1.8Zm-4.8 0v5.2H10V7.1h1.8Z" />
+    </svg>
   )
 }
 

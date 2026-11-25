@@ -1,6 +1,9 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
+/** Eingebaute Client-ID: damit reicht ein Klick auf "Mit Twitch anmelden". */
+export const BUILT_IN_CLIENT_ID = (import.meta.env.VITE_TWITCH_CLIENT_ID ?? '').trim()
+
 interface AuthState {
   clientId: string
   token: string
