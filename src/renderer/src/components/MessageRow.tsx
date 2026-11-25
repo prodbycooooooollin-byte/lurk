@@ -12,8 +12,8 @@ import { useUi } from '@/store/ui'
 import { deleteMessage, timeoutUser, banUser } from '@/lib/client'
 
 export function openUserCard(login: string, channel: string, e?: { clientX: number; clientY: number }): void {
-  const x = Math.min(Math.max(12, (e?.clientX ?? window.innerWidth / 2) + 12), window.innerWidth - 352)
-  const y = Math.min(Math.max(48, (e?.clientY ?? 140) - 40), window.innerHeight - 520)
+  const x = Math.min(Math.max(12, (e?.clientX ?? window.innerWidth / 2) + 12), window.innerWidth - 372)
+  const y = Math.min(Math.max(48, (e?.clientY ?? 140) - 40), window.innerHeight - 600)
   useUi.getState().set({ userCard: { login: login.toLowerCase(), channel, x, y } })
 }
 
