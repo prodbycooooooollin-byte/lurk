@@ -3,18 +3,20 @@ import { motion } from 'framer-motion'
 import { useShallow } from 'zustand/react/shallow'
 import {
   X, ExternalLink, Star, EyeOff, AtSign, Heart, Gem, Radio, CalendarDays, Users, MessageSquare, Shield, StickyNote,
-  Check, Pin, ScrollText, History, Hash, MonitorPlay, Loader2, Clock
+  Check, Pin, ScrollText, History, Hash, MonitorPlay, Loader2, Clock, Award
 } from 'lucide-react'
 import { useUi, type UserCardState } from '@/store/ui'
 import { useChat } from '@/store/chat'
 import { useSettings } from '@/store/settings'
-import { ivrSubage, ivrUsers, userLogs, type IvrSubage, type IvrUser, type LogLine } from '@/lib/api'
+import { ivrSubage, ivrUsers, ownedBadges, userBadgeHistory, userLogs, type BadgeSpan, type IvrSubage, type IvrUser, type LogLine, type OwnedBadge } from '@/lib/api'
 import { banUser, timeoutUser, unbanUser } from '@/lib/client'
 import { findBadge } from '@/lib/emotes'
 import { t, useT, type TKey } from '@/lib/i18n'
 import { primeMeta, isNewAccount } from '@/lib/avatars'
 import { getHistory, isRegular } from '@/lib/history'
 import { isBot } from '@/lib/bots'
+import { isCollectible, recordHistoric, useDexVersion, userBadges } from '@/lib/badgedex'
+import { useModChannels } from './RadarFeed'
 import { Avatar, IconButton, Tip } from './ui'
 import { cn, durationSince, formatAge, formatNumber, readableColor, relTime, timeShort } from '@/lib/util'
 import { tokenize } from '@/lib/tokenize'
@@ -29,7 +31,9 @@ const TIMEOUTS: [number, TKey][] = [
 ]
 
 const CARD_W = 372
-type Tab = 'messages' | 'logs' | 'note' | 'mod'
+type Tab = 'messages' | 'logs' | 'badges' | 'note' | 'mod'
+/** gilt als "gerade auch dort", wenn anwesend oder in den letzten 30 Min. geschrieben */
+const RECENT_MS = 30 * 60_000
 
 /** Kurz für die Kachel: ab einem Jahr nur Jahre ("3 years"), sonst wie formatAge */
 const compactAge = (iso: string): string => {
@@ -161,14 +165,25 @@ function CardBody({ card, pinned, setPinned, startDrag }: { card: UserCardState;
     const me = st.channels[card.channel]?.me
     return !!me && (me.mod || me.broadcaster)
   })
+  // Twitch schickt in großen Chats keine JOINs – darum zählt auch, wer dort kürzlich geschrieben hat
   const alsoIn = useChat(
-    useShallow((st) => Object.keys(st.channels).filter((c) => c !== card.channel && st.channels[c].presence[card.login]?.present))
+    useShallow((st) =>
+      Object.keys(st.channels).filter((c) => {
+        if (c === card.channel) return false
+        const q = st.channels[c].presence[card.login]
+        return !!q && (q.present || (!!q.lastMsgAt && Date.now() - q.lastMsgAt < RECENT_MS))
+      })
+    )
   )
+  useDexVersion()
+  const dexBadges = userBadges(card.login)
   const [user, setUser] = useState<IvrUser | null | undefined>(undefined)
   const [failed, setFailed] = useState(false)
   const [sub, setSub] = useState<IvrSubage | null | undefined>(undefined)
   const [tab, setTab] = useState<Tab>('messages')
   const [copied, setCopied] = useState<string | null>(null)
+  const [bannerLoaded, setBannerLoaded] = useState(false)
+  const [bannerFailed, setBannerFailed] = useState(false)
 
   useEffect(() => {
     let alive = true
@@ -217,20 +232,33 @@ function CardBody({ card, pinned, setPinned, startDrag }: { card: UserCardState;
   const tabs: [Tab, string, ReactNode][] = [
     ['messages', t('msgsToday'), <MessageSquare key="m" size={12} />],
     ['logs', t('logsTab'), <ScrollText key="l" size={12} />],
+    ['badges', t('badgesTab'), <Award key="b" size={12} />],
     ['note', t('noteTab'), <StickyNote key="n" size={12} />]
   ]
   if (canMod) tabs.push(['mod', t('moderation'), <Shield key="s" size={12} />])
 
   return (
     <>
-      {/* Banner in der Namensfarbe – zugleich Griff zum Verschieben */}
+      {/* Twitch-Banner (sonst Verlauf in der Namensfarbe) – zugleich Griff zum Verschieben */}
       <div
-        className="relative h-[68px] shrink-0 cursor-grab active:cursor-grabbing"
+        className="relative h-[96px] shrink-0 cursor-grab overflow-hidden active:cursor-grabbing"
         style={{
           background: `radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, ${color} 38%, transparent) 0%, transparent 60%), radial-gradient(90% 120% at 100% 0%, color-mix(in srgb, ${color} 16%, transparent) 0%, transparent 70%), rgb(var(--raised))`
         }}
         onMouseDown={startDrag}
       >
+        {user?.banner && !bannerFailed && (
+          <img
+            src={user.banner}
+            alt=""
+            draggable={false}
+            onLoad={() => setBannerLoaded(true)}
+            onError={() => setBannerFailed(true)}
+            className={cn('pointer-events-none absolute inset-0 h-full w-full object-cover transition-opacity duration-300', bannerLoaded ? 'opacity-100' : 'opacity-0')}
+          />
+        )}
+        {/* weicher Übergang nach unten, damit Avatar und Buttons lesbar bleiben */}
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom,rgb(var(--ground)/0.25)_0%,transparent_35%,transparent_55%,rgb(var(--ground)/0.85)_100%)]" />
         <div className="absolute inset-x-0 bottom-0 h-px bg-line/70" />
         {live && (
           <button
@@ -261,8 +289,9 @@ function CardBody({ card, pinned, setPinned, startDrag }: { card: UserCardState;
       {/* Identität */}
       <div className="relative -mt-8 flex items-end gap-3 px-4">
         <div className="relative shrink-0">
-          <div className="rounded-full p-[3px]" style={{ background: 'rgb(var(--ground))', boxShadow: `0 0 0 1.5px color-mix(in srgb, ${color} 55%, transparent)` }}>
-            {loadingUser ? <div className="h-[58px] w-[58px] animate-pulse rounded-full bg-raised" /> : <Avatar src={user?.logo} name={card.login} size={58} />}
+          {/* flex statt Block: sonst hängt die Inline-Grundlinie ein paar Pixel an und der Ring wird oval */}
+          <div className="flex h-[64px] w-[64px] items-center justify-center rounded-full" style={{ background: 'rgb(var(--ground))', boxShadow: `0 0 0 1.5px color-mix(in srgb, ${color} 55%, transparent)` }}>
+            {loadingUser ? <div className="h-[58px] w-[58px] animate-pulse rounded-full bg-raised" /> : <Avatar src={user?.logo} name={card.login} size={58} className="flex" />}
           </div>
           {present && <span className="absolute bottom-[3px] right-[3px] h-3.5 w-3.5 rounded-full border-[2.5px] border-ground bg-join" />}
         </div>
@@ -273,6 +302,7 @@ function CardBody({ card, pinned, setPinned, startDrag }: { card: UserCardState;
           {isRegular(hist) && <Chip tone="join">{t('regular')}</Chip>}
           {freshAccount && <Chip tone="warn">{t('newAccount')}</Chip>}
           {bot && <Chip>Bot</Chip>}
+
           {user?.banned && <Chip tone="live">{t('suspended')}</Chip>}
         </div>
       </div>
@@ -318,6 +348,7 @@ function CardBody({ card, pinned, setPinned, startDrag }: { card: UserCardState;
           </button>
         )}
         {user?.bio && <p className="selectable mt-2 line-clamp-2 text-[12.5px] leading-relaxed text-muted">{user.bio}</p>}
+        {alsoIn.length > 0 && <AlsoInStrip login={card.login} channels={alsoIn} onMessages={() => setTab('messages')} />}
       </div>
 
       {/* Kennzahlen */}
@@ -382,17 +413,6 @@ function CardBody({ card, pinned, setPinned, startDrag }: { card: UserCardState;
             <span className="text-faint">{t('firstVisit')}</span>
           )}
         </InfoRow>
-        {alsoIn.length > 0 && (
-          <InfoRow icon={<Hash size={13} />} label={t('alsoIn')}>
-            <span className="flex max-w-[170px] flex-wrap justify-end gap-1">
-              {alsoIn.map((c) => (
-                <button key={c} onClick={() => useUi.getState().showChannel(c)} className="rounded-full bg-raised px-1.5 text-[11px] text-muted hover:text-ink">
-                  #{c}
-                </button>
-              ))}
-            </span>
-          </InfoRow>
-        )}
       </div>
 
       {/* Aktionen */}
@@ -430,7 +450,8 @@ function CardBody({ card, pinned, setPinned, startDrag }: { card: UserCardState;
       </div>
 
       <div className="min-h-[110px] flex-1 overflow-y-auto px-4 pb-3 pt-2">
-        {tab === 'messages' && <SessionMessages card={card} />}
+        {tab === 'messages' && <SessionMessages card={card} others={alsoIn} />}
+        {tab === 'badges' && <BadgesTab card={card} current={user?.badges} keys={dexBadges} />}
         {tab === 'logs' && <Logs card={card} />}
         {tab === 'note' && <NoteEditor login={card.login} />}
         {tab === 'mod' && canMod && (
@@ -445,6 +466,7 @@ function CardBody({ card, pinned, setPinned, startDrag }: { card: UserCardState;
                 ))}
               </div>
             </div>
+            <BanEverywhere card={card} />
             <div className="grid grid-cols-2 gap-1.5">
               <button onClick={() => void banUser(card.channel, card.login)} className="h-8 rounded-md border border-live/40 text-[12.5px] font-medium text-live transition-colors hover:bg-live/10">
                 {t('ban')}
@@ -460,25 +482,202 @@ function CardBody({ card, pinned, setPinned, startDrag }: { card: UserCardState;
   )
 }
 
-/** Nachrichten dieser Sitzung – abonniert als einziges die Nachrichtenliste */
-function SessionMessages({ card }: { card: UserCardState }) {
+/** Nachrichten dieser Sitzung – hier oder aus allen offenen Chats, neueste zuerst */
+function SessionMessages({ card, others }: { card: UserCardState; others: string[] }) {
   const t = useT()
-  const messages = useChat((st) => st.channels[card.channel]?.messages)
+  const [scope, setScope] = useState<'here' | 'all'>('here')
+  const all = scope === 'all' && others.length > 0
+  const watch = all ? [card.channel, ...others] : [card.channel]
+  // nur die betroffenen Listen abonnieren
+  const lists = useChat(useShallow((st) => watch.map((c) => st.channels[c]?.messages)))
   const msgs = useMemo(() => {
     const out: ChatMessage[] = []
-    if (!messages) return out
-    for (let i = messages.length - 1; i >= 0 && out.length < 80; i--) {
-      const m = messages[i]
-      if (m.login === card.login && (m.kind === 'chat' || m.kind === 'action')) out.push(m)
+    for (const messages of lists) {
+      if (!messages) continue
+      let n = 0
+      for (let i = messages.length - 1; i >= 0 && n < 80; i--) {
+        const m = messages[i]
+        if (m.login === card.login && (m.kind === 'chat' || m.kind === 'action')) {
+          out.push(m)
+          n++
+        }
+      }
     }
-    return out
-  }, [messages, card.login])
-  if (!msgs.length) return <div className="py-6 text-center text-[12px] text-faint">{t('nothingSince')}</div>
+    return out.sort((a, b) => b.ts - a.ts).slice(0, 120)
+  }, [lists, card.login])
+  const otherCount = useChat((st) => {
+    let n = 0
+    for (const c of others) n += st.channels[c]?.presence[card.login]?.msgCount ?? 0
+    return n
+  })
   return (
     <>
-      {msgs.map((m) => (
-        <MiniMessage key={m.id} msg={m} />
-      ))}
+      {others.length > 0 && (
+        <div className="sticky top-0 z-[1] -mx-4 mb-1 flex items-center gap-1 bg-ground/95 px-4 pb-1.5 pt-0.5 backdrop-blur">
+          {(['here', 'all'] as const).map((k) => (
+            <button
+              key={k}
+              onClick={() => setScope(k)}
+              className={cn('rounded-full px-2 py-[2px] text-[11px] font-medium transition-colors', scope === k ? 'bg-ink text-ground' : 'text-faint hover:text-muted')}
+            >
+              {k === 'here' ? `#${card.channel}` : t('allChats', { n: otherCount })}
+            </button>
+          ))}
+        </div>
+      )}
+      {!msgs.length ? (
+        <div className="py-6 text-center text-[12px] text-faint">{t('nothingSince')}</div>
+      ) : (
+        msgs.map((m) => <MiniMessage key={m.id} msg={m} channelTag={all && m.channel !== card.channel ? m.channel : undefined} />)
+      )}
+    </>
+  )
+}
+
+/** "Gerade auch in": Kanäle als Chips mit Avatar. Klick zeigt die Nachrichten von dort, Strg+Klick öffnet den Kanal daneben */
+function AlsoInStrip({ login, channels, onMessages }: { login: string; channels: string[]; onMessages: () => void }) {
+  const t = useT()
+  const infos = useChat(
+    useShallow((st) =>
+      channels.map((c) => {
+        const ch = st.channels[c]
+        const q = ch?.presence[login]
+        return { c, avatar: ch?.info.avatar, name: ch?.info.displayName ?? c, live: !!ch?.info.live, msgs: q?.msgCount ?? 0, here: !!q?.present }
+      })
+    )
+  )
+  return (
+    <div className="mt-2.5 rounded-[10px] border border-line bg-raised/30 px-2.5 py-2">
+      <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-faint">
+        <Hash size={11} />
+        {t('alsoInNow')}
+        <span className="ml-auto font-normal">{t('alsoInHint')}</span>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {infos.map((i) => (
+          <Tip key={i.c} label={i.msgs ? t('alsoInMsgs', { n: i.msgs }) : i.here ? t('alsoInLurking') : t('alsoInRecent')}>
+            <button
+              onClick={(e) => (e.ctrlKey || e.metaKey ? useUi.getState().openSplit(i.c) : i.msgs ? onMessages() : useUi.getState().showChannel(i.c))}
+              className="flex items-center gap-1.5 rounded-full border border-line bg-ground py-[2px] pl-[2px] pr-2 text-[11.5px] text-muted transition-colors hover:border-muted hover:text-ink"
+            >
+              <span className="relative flex">
+                <Avatar src={i.avatar} name={i.c} size={18} className="flex" />
+                {i.live && <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border-[1.5px] border-ground bg-live" />}
+              </span>
+              {i.name}
+              {i.msgs > 0 && <span className="rounded-full bg-raised px-1 text-[10px] tabular-nums text-faint">{i.msgs}</span>}
+            </button>
+          </Tip>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Alle Badges einer Person. Twitch zeigt anderen immer nur das ausgewählte, darum:
+ *  1. BadgeHQ – die vollständige Sammlung des Accounts
+ *  2. öffentliche Chat-Logs dieses Kanals – wann welches Badge getragen wurde
+ *  3. was Lurk selbst in deinen Chats gesehen hat (Rückfall, falls 1 und 2 nicht antworten)
+ */
+function BadgesTab({ card, current, keys }: { card: UserCardState; current?: { setID: string; version: string }[]; keys: string[] }) {
+  const t = useT()
+  const [owned, setOwned] = useState<OwnedBadge[] | null | undefined>(undefined)
+  const [hist, setHist] = useState<{ spans: BadgeSpan[]; months: number; messages: number } | null | undefined>(undefined)
+  useEffect(() => {
+    let alive = true
+    setOwned(undefined)
+    setHist(undefined)
+    void ownedBadges(card.login).then((r) => {
+      if (!alive) return
+      setOwned(r)
+      if (r) {
+        const now = Date.now()
+        recordHistoric(card.login, r.map((b) => ({ key: `${b.setId}/${b.version}`, first: now, last: now })), card.channel)
+      }
+    })
+    void userBadgeHistory(card.channel, card.login).then((r) => {
+      if (!alive) return
+      setHist(r)
+      if (r) recordHistoric(card.login, r.spans, card.channel)
+    })
+    return () => {
+      alive = false
+    }
+  }, [card.channel, card.login])
+
+  const rows = useMemo(() => {
+    type Row = { key: string; title?: string; description?: string; image?: string; first?: number; last?: number; count?: number; worn: boolean; owned: boolean; live: boolean }
+    const m = new Map<string, Row>()
+    const row = (key: string): Row => {
+      let r = m.get(key)
+      if (!r) m.set(key, (r = { key, worn: false, owned: false, live: false }))
+      return r
+    }
+    for (const b of owned ?? []) Object.assign(row(`${b.setId}/${b.version}`), { owned: true, title: b.title, description: b.description, image: b.image })
+    for (const b of current ?? []) row(`${b.setID}/${b.version}`).worn = true
+    for (const k of keys) row(k).live = true
+    for (const s of hist?.spans ?? []) {
+      // Kanal-Badges (Sub, Bits …) gehören zum Kanal, nicht zur Sammlung
+      if (!isCollectible(s.key.split('/')[0])) continue
+      Object.assign(row(s.key), { first: s.first, last: s.last, count: s.count })
+    }
+    return [...m.values()]
+      .map((r) => {
+        const [set, version] = r.key.split('/')
+        const b = findBadge(card.channel, set, version)
+        return { ...r, title: r.title ?? b?.title, description: r.description ?? b?.description, image: b?.url4x ?? r.image }
+      })
+      .filter((r) => r.title && r.image)
+      .sort((a, b) => Number(b.worn) - Number(a.worn) || (b.last ?? 0) - (a.last ?? 0) || a.title!.localeCompare(b.title!))
+  }, [owned, current, keys, hist, card.channel])
+
+  const loading = owned === undefined
+  const month = (ms: number): string => new Date(ms).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
+  return (
+    <>
+      <div className="mb-2 flex items-start gap-2 text-[11.5px] leading-snug text-faint">
+        {(loading || hist === undefined) && <Loader2 size={12} className="mt-[1px] shrink-0 animate-spin" />}
+        <span>
+          {loading
+            ? t('badgesLoading')
+            : owned
+              ? t('badgesOwned', { n: rows.length })
+              : t('badgesFallback', { n: rows.length })}
+          {hist && rows.some((r) => r.count) && <> · {t('badgesLogNote', { c: card.channel, m: hist.months })}</>}
+        </span>
+      </div>
+      {!rows.length && !loading ? (
+        <div className="py-5 text-center text-[12px] leading-relaxed text-faint">{t('badgesNone')}</div>
+      ) : (
+        <div className="divide-y divide-line/60">
+          {rows.map((r) => (
+            <Tip key={r.key} label={r.description ?? r.title!} side="left">
+              <button
+                onClick={() => useUi.getState().set({ dexOpen: true, dexFocus: r.key })}
+                className="flex w-full items-center gap-2.5 py-1.5 text-left transition-colors hover:bg-raised/40"
+              >
+                <img src={r.image} alt="" className="h-6 w-6 shrink-0" draggable={false} />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[12.5px] text-ink">{r.title}</span>
+                  {(r.first || r.count) && (
+                    <span className="block truncate text-[11px] text-faint">
+                      {r.first && r.last ? t('badgeWornIn', { d: month(r.first) === month(r.last) ? month(r.last) : `${month(r.first)} – ${month(r.last)}`, c: card.channel }) : ''}
+                      {r.count ? ` · ${t('badgeMsgs', { n: formatNumber(r.count) })}` : ''}
+                    </span>
+                  )}
+                </span>
+                {r.worn && <span className="shrink-0 rounded-full border border-line px-1.5 py-[1px] text-[10.5px] text-muted">{t('badgeWorn')}</span>}
+              </button>
+            </Tip>
+          ))}
+        </div>
+      )}
+      {owned && (
+        <button onClick={() => void window.bridge.open(`https://www.badgehq.xyz/u/${card.login}`)} className="mt-2 w-full text-center text-[11px] text-faint hover:text-ink">
+          {t('badgesViaBhq')}
+        </button>
+      )}
     </>
   )
 }
@@ -526,6 +725,21 @@ function Logs({ card }: { card: UserCardState }) {
   )
 }
 
+function BanEverywhere({ card }: { card: UserCardState }) {
+  const t = useT()
+  const mods = useModChannels()
+  if (mods.length < 2) return null
+  return (
+    <button
+      onClick={() => void Promise.all(mods.map((c) => banUser(c, card.login)))}
+      title={mods.map((c) => `#${c}`).join(', ')}
+      className="h-8 w-full rounded-md border border-live/40 text-[12.5px] font-medium text-live transition-colors hover:bg-live/10"
+    >
+      {t('banEverywhere', { n: mods.length })}
+    </button>
+  )
+}
+
 function NoteEditor({ login }: { login: string }) {
   const t = useT()
   const setNoteStore = useSettings((s) => s.setNote)
@@ -543,7 +757,7 @@ function NoteEditor({ login }: { login: string }) {
   )
 }
 
-const MiniMessage = memo(function MiniMessage({ msg }: { msg: ChatMessage }) {
+const MiniMessage = memo(function MiniMessage({ msg, channelTag }: { msg: ChatMessage; channelTag?: string }) {
   const thirdParty = useSettings((s) => s.thirdPartyEmotes)
   const emoteVersion = useChat((s) => s.emoteVersion)
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -552,6 +766,11 @@ const MiniMessage = memo(function MiniMessage({ msg }: { msg: ChatMessage }) {
     <div className={cn('chat-line selectable flex gap-2 border-b border-line/40 py-1.5 text-[13px] last:border-0', msg.deleted && 'line-through opacity-40')}>
       <span className="w-9 shrink-0 pt-[3px] text-[10.5px] tabular-nums text-faint">{timeShort(msg.ts)}</span>
       <span className="min-w-0 flex-1 break-words">
+        {channelTag && (
+          <button onClick={() => useUi.getState().showChannel(channelTag)} className="mr-1.5 rounded-full bg-raised px-1.5 py-[1px] align-[1px] text-[10.5px] font-medium text-muted hover:text-ink">
+            #{channelTag}
+          </button>
+        )}
         {tokens.map((tk, i) => (tk.t === 'emote' ? <img key={i} className="emote" src={tk.e.url} alt={tk.e.name} data-emote={tk.e.name} data-big={tk.e.url4x ?? tk.e.url} data-src={tk.e.source} data-scope={tk.e.scope} /> : <span key={i}>{tk.v}</span>))}
       </span>
     </div>

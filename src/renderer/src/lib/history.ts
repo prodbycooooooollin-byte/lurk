@@ -130,5 +130,39 @@ export function getHistory(channel: string, login: string): HistoryEntry | undef
   return mem.get(channel)?.[login.toLowerCase()]
 }
 
+let allLoad: Promise<void> | null = null
+let allLoadedAt = 0
+
+/**
+ * Verlauf aller je besuchten Kanäle (nicht nur der offenen) – für Überschneidungen zwischen
+ * Communities. Wird höchstens alle 5 Minuten neu aus der Datenbank gelesen.
+ */
+export async function allHistories(): Promise<Map<string, ChannelHistory>> {
+  if (!allLoad || Date.now() - allLoadedAt > 5 * 60_000) {
+    allLoadedAt = Date.now()
+    allLoad = (async () => {
+      try {
+        const d = await db()
+        const [keys, values] = await new Promise<[IDBValidKey[], ChannelHistory[]]>((res) => {
+          const store = d.transaction('history').objectStore('history')
+          const k = store.getAllKeys()
+          const v = store.getAll()
+          v.onsuccess = () => res([k.result ?? [], (v.result as ChannelHistory[]) ?? []])
+          v.onerror = () => res([[], []])
+        })
+        keys.forEach((key, i) => {
+          const c = String(key)
+          // Einträge im Speicher sind aktueller als die gespeicherten
+          if (!loaded.has(c)) mem.set(c, { ...(values[i] ?? {}), ...(mem.get(c) ?? {}) })
+        })
+      } catch {
+        /* dann nur die offenen Kanäle */
+      }
+    })()
+  }
+  await allLoad
+  return mem
+}
+
 /** Stammgast: mindestens 4 Besuche */
 export const isRegular = (e?: HistoryEntry): boolean => !!e && e.v >= 4

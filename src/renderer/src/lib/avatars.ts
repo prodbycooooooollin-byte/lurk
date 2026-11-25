@@ -82,6 +82,11 @@ const subscribe = (l: () => void): (() => void) => {
   return () => listeners.delete(l)
 }
 
+/** Zähler, der bei jedem neu geladenen Stapel Kontodaten steigt */
+export function useMetaVersion(): number {
+  return useSyncExternalStore(subscribe, () => version)
+}
+
 /** Metadaten zu einem Login (lädt bei Bedarf nach) */
 export function useUserMeta(login: string | undefined): UserMeta | null | undefined {
   useSyncExternalStore(subscribe, () => version)

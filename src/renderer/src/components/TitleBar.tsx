@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Minus, Square, X, Copy, Pin, PanelRight, PanelLeft, Search, ArrowDownToLine, Loader2, EyeOff } from 'lucide-react'
+import { Minus, Square, X, Copy, Pin, PanelRight, PanelLeft, Search, ArrowDownToLine, Loader2, EyeOff, Award } from 'lucide-react'
 import { useSettings } from '@/store/settings'
 import type { UpdateState } from '../../../preload/index.d'
 import { useUi } from '@/store/ui'
@@ -71,6 +71,11 @@ export function TitleBar() {
       )}
 
       <div className="flex items-center">
+        <Tip label={t('badgeDex')} shortcut="Ctrl Shift B">
+          <IconButton active={ui.dexOpen} onClick={() => ui.set({ dexOpen: !ui.dexOpen, dexFocus: null })}>
+            <Award size={15} strokeWidth={1.75} />
+          </IconButton>
+        </Tip>
         <Tip label={t('tipChannels')} shortcut="Ctrl B">
           <IconButton active={!ui.railCollapsed} onClick={() => ui.set({ railCollapsed: !ui.railCollapsed })}>
             <PanelLeft size={15} strokeWidth={1.75} />

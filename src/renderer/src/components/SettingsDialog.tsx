@@ -160,6 +160,17 @@ function ChatTab() {
           onChange={(imagePreviews) => s.set({ imagePreviews })}
         />
       </Row>
+      <Row label={t('modRadar')} hint={t('modRadarHint')}>
+        <Segmented
+          value={s.modRadar}
+          options={[
+            ['mod', t('radarAsMod')],
+            ['all', t('radarEverywhere')],
+            ['off', t('previewOff')]
+          ]}
+          onChange={(modRadar) => s.set({ modRadar })}
+        />
+      </Row>
       <Row label={t('deletedMsgs')}>
         <Segmented value={s.deletedMode} options={[['strike', t('strike')], ['hide', t('hide')]]} onChange={(deletedMode) => s.set({ deletedMode })} />
       </Row>

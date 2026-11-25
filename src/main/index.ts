@@ -93,7 +93,11 @@ function createWindow(): void {
 // Erlaubte Hosts für Netzwerkzugriffe aus dem Renderer (umgeht CORS sauber über den Main-Prozess)
 const ALLOWED_HOSTS = [
   'api.twitch.tv', 'id.twitch.tv', 'api.ivr.fi', '7tv.io', 'api.betterttv.net',
-  'api.frankerfacez.com', 'recent-messages.robotty.de', 'logs.ivr.fi'
+  'api.frankerfacez.com', 'recent-messages.robotty.de', 'logs.ivr.fi',
+  // nur für Bild-Vorschauen von Alben/Galerien (og:image aus dem HTML)
+  'imgur.com', 'tenor.com',
+  // vollständige Badge-Listen beliebiger Accounts (Twitch selbst zeigt nur das ausgewählte)
+  'www.badgehq.xyz'
 ]
 
 interface NetRequest { url: string; method?: string; headers?: Record<string, string>; body?: string }

@@ -1,11 +1,11 @@
-import { memo, useMemo, type MouseEvent } from 'react'
+import { memo, useEffect, useMemo, useState, type MouseEvent } from 'react'
 import * as CM from '@radix-ui/react-context-menu'
-import { Reply, Copy, UserRound, Trash2, Clock, Ban, Eye, CornerDownRight } from 'lucide-react'
+import { Reply, Copy, UserRound, Trash2, Clock, Ban, Eye, CornerDownRight, ShieldAlert } from 'lucide-react'
 import type { ChatMessage } from '@/lib/types'
 import { tokenize, type Token } from '@/lib/tokenize'
 import { findBadge } from '@/lib/emotes'
 import { cn, readableColor, timeShort } from '@/lib/util'
-import { imageUrl } from '@/lib/linkPreview'
+import { imageUrl, isVideo, pageToResolve, resolveMedia } from '@/lib/linkPreview'
 import { useT } from '@/lib/i18n'
 import { useSettings } from '@/store/settings'
 import { useShallow } from 'zustand/react/shallow'
@@ -63,6 +63,7 @@ function Tokens({ msg, emoteVersion }: { msg: ChatMessage; emoteVersion: number 
                 key={i}
                 href={tk.href}
                 data-image={previewMode === 'hover' ? imageUrl(tk.href) ?? undefined : undefined}
+                data-resolve={previewMode === 'hover' && !imageUrl(tk.href) && pageToResolve(tk.href) ? tk.href : undefined}
                 className="text-ink underline decoration-faint underline-offset-2 hover:decoration-ink"
                 onClick={(e) => {
                   e.preventDefault()
@@ -78,49 +79,74 @@ function Tokens({ msg, emoteVersion }: { msg: ChatMessage; emoteVersion: number 
   )
 }
 
+/** Links im Text, hinter denen ein Bild/Video stecken kann (max. 3) */
+function mediaLinks(text: string): string[] {
+  if (!text.includes('.')) return []
+  const out: string[] = []
+  for (const w of text.split(/\s+/)) {
+    if (!/^(https?:\/\/|www\.)/i.test(w)) continue
+    const href = w.startsWith('http') ? w : `https://${w}`
+    if ((imageUrl(href) || pageToResolve(href)) && !out.includes(href)) out.push(href)
+    if (out.length >= 3) break
+  }
+  return out
+}
+
 /** Bilder hinter Links direkt im Chat (feste Höhe, damit die Liste beim Laden nicht springt) */
 const ImagePreviews = memo(function ImagePreviews({ text }: { text: string }) {
   const mode = useSettings((s) => s.imagePreviews)
-  const urls = useMemo(() => {
-    if (mode !== 'inline' || !text.includes('.')) return []
-    const out: { href: string; img: string }[] = []
-    for (const w of text.split(/\s+/)) {
-      if (!/^(https?:\/\/|www\.)/i.test(w)) continue
-      const href = w.startsWith('http') ? w : `https://${w}`
-      const img = imageUrl(href)
-      if (img && !out.some((o) => o.img === img)) out.push({ href, img })
-      if (out.length >= 3) break
-    }
-    return out
-  }, [text, mode])
-  if (!urls.length) return null
+  const links = useMemo(() => (mode === 'inline' ? mediaLinks(text) : []), [text, mode])
+  if (!links.length) return null
   return (
     <div className="mb-1 mt-1 flex gap-2">
-      {urls.map((u) => (
-        <a
-          key={u.img}
-          href={u.href}
-          onClick={(e) => {
-            e.preventDefault()
-            void window.bridge.open(u.href)
-          }}
-          data-image={u.img}
-          className="group/img relative block h-28 overflow-hidden rounded-md border border-line bg-raised"
-        >
-          <img
-            src={u.img}
-            alt=""
-            loading="lazy"
-            draggable={false}
-            referrerPolicy="no-referrer"
-            className="h-full w-auto max-w-[280px] object-cover transition group-hover/img:brightness-110"
-            onError={(e) => ((e.currentTarget.parentElement as HTMLElement).style.display = 'none')}
-          />
-        </a>
+      {links.map((href) => (
+        <InlineMedia key={href} href={href} />
       ))}
     </div>
   )
 })
+
+function InlineMedia({ href }: { href: string }) {
+  const [src, setSrc] = useState<string | null | undefined>(() => imageUrl(href) ?? undefined)
+  const [failed, setFailed] = useState(false)
+  useEffect(() => {
+    if (src !== undefined) return
+    let alive = true
+    void resolveMedia(href).then((r) => alive && setSrc(r))
+    return () => {
+      alive = false
+    }
+  }, [href, src])
+  if (src === null || failed) return null
+  const open = (e: MouseEvent): void => {
+    e.preventDefault()
+    void window.bridge.open(href)
+  }
+  return (
+    <a href={href} onClick={open} data-image={src && !isVideo(src) ? src : undefined} className="group/img relative block h-28 min-w-[60px] overflow-hidden rounded-md border border-line bg-raised">
+      {src === undefined ? (
+        <span className="block h-full w-40 animate-pulse bg-line/40" />
+      ) : isVideo(src) ? (
+        <video src={src} autoPlay muted loop playsInline preload="metadata" onError={() => setFailed(true)} className="h-full w-auto max-w-[280px] object-cover" />
+      ) : (
+        <img
+          src={src}
+          alt=""
+          loading="lazy"
+          draggable={false}
+          referrerPolicy="no-referrer"
+          onLoad={(e) => {
+            // Imgur liefert für gelöschte Bilder einen 161×81-Platzhalter statt eines Fehlers
+            const im = e.currentTarget
+            if (/imgur\.com/.test(src) && im.naturalWidth === 161 && im.naturalHeight === 81) setFailed(true)
+          }}
+          onError={() => setFailed(true)}
+          className="h-full w-auto max-w-[280px] object-cover transition group-hover/img:brightness-110"
+        />
+      )}
+    </a>
+  )
+}
 
 function SystemLine({ msg }: { msg: ChatMessage }) {
   const t = useT()
@@ -225,6 +251,7 @@ export const MessageRow = memo(function MessageRow({ msg, alt, dark, emoteVersio
         hl === 'mention' && 'bg-ink/[0.07] shadow-[inset_2px_0_0_rgb(var(--ink))]',
         hl === 'first' && 'shadow-[inset_2px_0_0_rgb(var(--join))]',
         hl === 'watch' && 'shadow-[inset_2px_0_0_rgb(var(--warn))]',
+        msg.radar && !hl && 'bg-warn/[0.045] shadow-[inset_2px_0_0_rgb(var(--warn))]',
         msg.historical && 'opacity-50',
         msg.deleted && 'opacity-40'
       )}
@@ -248,6 +275,15 @@ export const MessageRow = memo(function MessageRow({ msg, alt, dark, emoteVersio
             const badge = findBadge(msg.channel, b.set, b.version)
             return badge ? <img key={b.set} className="badge" src={badge.url} alt="" title={badge.title} draggable={false} /> : null
           })}
+        {msg.radar && (
+          <button
+            title={t('radarFlagged')}
+            onClick={() => set({ panelOpen: true, panelTab: 'radar' })}
+            className="mr-1 inline-flex translate-y-[2px] text-warn hover:brightness-125"
+          >
+            <ShieldAlert size={14} />
+          </button>
+        )}
         <button className="font-semibold hover:underline" style={{ color: nameColor }} onClick={onName}>
           {msg.displayName}
           {msg.displayName && msg.displayName.toLowerCase() !== login && <span className="font-normal opacity-70"> ({login})</span>}

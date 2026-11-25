@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useT } from '@/lib/i18n'
+import { isVideo, resolveMedia } from '@/lib/linkPreview'
 
 interface Preview {
   /** reines Bild (Link-Vorschau) statt Emote */
@@ -23,14 +24,18 @@ export function EmotePreview() {
     let timer: number | undefined
     let current: HTMLElement | null = null
     const over = (e: MouseEvent): void => {
-      const el = (e.target as HTMLElement | null)?.closest<HTMLElement>('[data-emote],[data-image]') ?? null
+      const el = (e.target as HTMLElement | null)?.closest<HTMLElement>('[data-emote],[data-image],[data-resolve]') ?? null
       if (el === current) return
       current = el
       window.clearTimeout(timer)
       if (!el) return setP(null)
       timer = window.setTimeout(() => {
         const r = el.getBoundingClientRect()
-        if (el.dataset.image) setP({ image: true, name: '', big: el.dataset.image, source: '', scope: '', x: r.left + r.width / 2, y: r.top })
+        if (el.dataset.resolve) {
+          void resolveMedia(el.dataset.resolve).then((src) => {
+            if (src && current === el) setP({ image: true, name: '', big: src, source: '', scope: '', x: r.left + r.width / 2, y: r.top })
+          })
+        } else if (el.dataset.image) setP({ image: true, name: '', big: el.dataset.image, source: '', scope: '', x: r.left + r.width / 2, y: r.top })
         else setP({ name: el.dataset.emote ?? '', big: el.dataset.big ?? '', source: el.dataset.src ?? '', scope: el.dataset.scope ?? '', x: r.left + r.width / 2, y: r.top })
       }, 220)
     }
@@ -57,7 +62,11 @@ export function EmotePreview() {
         className="pointer-events-none fixed z-[90] overflow-hidden rounded-lg border border-line bg-raised shadow-2xl"
         style={{ left: Math.min(Math.max(170, p.x), window.innerWidth - 170), top: below ? p.y + 24 : p.y - 8, transform: `translate(-50%, ${below ? '0' : '-100%'})` }}
       >
-        <img src={p.big} alt="" referrerPolicy="no-referrer" className="block max-h-[360px] max-w-[320px] object-contain" />
+        {isVideo(p.big) ? (
+          <video src={p.big} autoPlay muted loop playsInline className="block max-h-[360px] max-w-[320px] object-contain" />
+        ) : (
+          <img src={p.big} alt="" referrerPolicy="no-referrer" className="block max-h-[360px] max-w-[320px] object-contain" />
+        )}
       </div>
     )
   }

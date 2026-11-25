@@ -8,7 +8,7 @@ export interface UserCardState {
   y: number
 }
 
-export type PanelTab = 'presence' | 'activity' | 'stats'
+export type PanelTab = 'presence' | 'activity' | 'stats' | 'audience' | 'radar'
 
 interface UiState {
   channels: string[]
@@ -21,6 +21,9 @@ interface UiState {
   view: 'chat' | 'mentions'
   userCard: UserCardState | null
   settingsOpen: boolean
+  /** Badge-Dex offen, optional mit vorausgewähltem Badge ("set/version") */
+  dexOpen: boolean
+  dexFocus: string | null
   settingsTab: string
   paletteOpen: boolean
   joinOpen: boolean
@@ -50,6 +53,8 @@ export const useUi = create<UiState>()(
       view: 'chat',
       userCard: null,
       settingsOpen: false,
+      dexOpen: false,
+      dexFocus: null,
       settingsTab: 'look',
       paletteOpen: false,
       joinOpen: false,

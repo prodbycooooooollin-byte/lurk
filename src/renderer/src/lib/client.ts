@@ -1,3 +1,5 @@
+import { recordBadges, startBadgeDex } from './badgedex'
+import { assessMessage, noteBan, type RadarReason } from './modradar'
 // Lurk engine: connects IRC, APIs and the store. Incoming events are collected
 // and written to the store in batches every 100 ms, so the UI stays smooth even in very fast chats.
 import { toast } from 'sonner'
@@ -74,6 +76,20 @@ function flush(): void {
   useChat.setState({
     channels,
     ...(ctx.mentions.length ? { mentions: [...state.mentions, ...ctx.mentions].slice(-500) } : {})
+  })
+}
+
+// ---------- Mod-Radar ----------
+/** Nachricht nachträglich als auffällig markieren (neues Objekt, damit die Zeile neu rendert) */
+function flagMessage(channel: string, id: string, reasons: RadarReason[]): void {
+  queue((get) => {
+    const ch = get(channel)
+    for (let i = ch.messages.length - 1, n = 0; i >= 0 && n < 600; i--, n++) {
+      if (ch.messages[i].id === id) {
+        ch.messages[i] = { ...ch.messages[i], radar: reasons }
+        break
+      }
+    }
   })
 }
 
@@ -269,6 +285,7 @@ function handle(m: IrcMessage, historical = false): void {
       queue((get, ctx) => {
         const ch = get(c)
         ch.messages.push(msg)
+        recordBadges(msg.login, msg.badges, c, msg.ts, historical)
         if (!historical) {
           countMessage(c, msg.login!)
           touchPresence(ch, msg.login!, { displayName: msg.displayName, color: msg.color, badges: msg.badges, ts: msg.ts, message: true })
@@ -280,6 +297,7 @@ function handle(m: IrcMessage, historical = false): void {
           ch.unread++
         }
       })
+      if (!historical) assessMessage(msg, m.tags, flagMessage)
       if (!historical && (hl.kind === 'mention' || hl.kind === 'keyword')) {
         startleLogo()
         if (hl.sound) void playSound(useSettings.getState().mentionSoundId)
@@ -297,6 +315,7 @@ function handle(m: IrcMessage, historical = false): void {
         text: m.params.length > 1 ? m.trailing : ''
       }
       if (msg.noticeType === 'announcement') msg.highlightColor = (t['msg-param-color'] || 'PRIMARY').toLowerCase()
+      recordBadges(msg.login, msg.badges, c, msg.ts, historical)
       queue((get) => {
         const ch = get(c)
         ch.messages.push(msg)
@@ -307,6 +326,7 @@ function handle(m: IrcMessage, historical = false): void {
     case 'CLEARCHAT': {
       const target = m.params.length > 1 ? m.trailing.toLowerCase() : ''
       const dur = m.tags['ban-duration']
+      if (target) noteBan(c, target, Number(m.tags['tmi-sent-ts']) || Date.now(), dur ? Number(dur) : undefined)
       queue((get) => {
         const ch = get(c)
         if (!target) {
@@ -671,6 +691,7 @@ export async function startClient(): Promise<void> {
     }
   )
   startHistory()
+  startBadgeDex()
   onEmotesChanged(() => useChat.setState((s) => ({ emoteVersion: s.emoteVersion + 1 })))
   void loadGlobalEmotes()
   void loadGlobalBadges()

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Command } from 'cmdk'
 import * as Dialog from '@radix-ui/react-dialog'
-import { Hash, Columns2, Settings, PanelRight, Sun, Moon, AtSign, Rows3, LogIn, RefreshCw, Plus, Search, Languages } from 'lucide-react'
+import { Hash, Columns2, Settings, PanelRight, Sun, Moon, AtSign, Rows3, LogIn, RefreshCw, Plus, Search, Languages, Award } from 'lucide-react'
 import { useUi } from '@/store/ui'
 import { useSettings } from '@/store/settings'
 import { useChat } from '@/store/chat'
@@ -74,6 +74,9 @@ export function CommandPalette() {
                 </Item>
                 <Item icon={<AtSign size={14} />} value="mentions erwähnungen" onSelect={run(() => ui.set({ view: 'mentions' }))}>
                   {t('showMentions')}
+                </Item>
+                <Item icon={<Award size={14} />} value="badge dex collection sammlung badges" onSelect={run(() => ui.set({ dexOpen: true, dexFocus: null }))} hint="Ctrl Shift B">
+                  {t('badgeDex')}
                 </Item>
                 <Item icon={<PanelRight size={14} />} value="presence who chat sidebar präsenz" onSelect={run(() => ui.set({ panelOpen: !ui.panelOpen }))} hint="Ctrl J">
                   {t('togglePresence')}

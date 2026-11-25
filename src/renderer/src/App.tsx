@@ -13,6 +13,7 @@ import { FpsMeter } from './components/FpsMeter'
 import { SettingsDialog } from './components/SettingsDialog'
 import { CommandPalette, JoinDialog, addAndJoin } from './components/CommandPalette'
 import { MentionsView } from './components/MentionsView'
+import { BadgeDex } from './components/BadgeDex'
 import { useUi } from './store/ui'
 import { useSettings } from './store/settings'
 import { setWindowFocused, startClient } from './lib/client'
@@ -89,7 +90,10 @@ export default function App() {
       if (!mod) return
       const u = useUi.getState()
       const k = e.key.toLowerCase()
-      if (k === 'k') {
+      if (k === 'b' && e.shiftKey) {
+        e.preventDefault()
+        u.set({ dexOpen: !u.dexOpen, dexFocus: null })
+      } else if (k === 'k') {
         e.preventDefault()
         u.set({ paletteOpen: !u.paletteOpen })
       } else if (k === 't') {
@@ -154,6 +158,7 @@ export default function App() {
       <EmotePreview />
       <FpsMeter />
       <SettingsDialog />
+      <BadgeDex />
       <CommandPalette />
       <JoinDialog />
       <Toaster theme={theme} position="bottom-right" toastOptions={{ style: { background: 'rgb(var(--raised))', border: '1px solid rgb(var(--line))', color: 'rgb(var(--ink))', fontFamily: 'inherit', fontSize: 13, borderRadius: 8 } }} />

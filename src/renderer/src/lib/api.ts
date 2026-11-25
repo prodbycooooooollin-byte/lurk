@@ -20,6 +20,10 @@ export interface IvrUser {
   login: string
   displayName: string
   logo?: string
+  /** Kanalbanner (profile_banner-480) – fehlt, wenn keiner gesetzt ist */
+  banner?: string | null
+  /** gerade ausgewähltes globales Badge */
+  badges?: { setID: string; version: string; title?: string; description?: string }[]
   createdAt?: string
   chatColor?: string | null
   followers?: number
@@ -208,11 +212,112 @@ export function helixAnnounce(ctx: HelixCtx, broadcasterId: string, message: str
   return helix(ctx, 'POST', `chat/announcements?broadcaster_id=${broadcasterId}&moderator_id=${ctx.userId}`, { message })
 }
 
+// ---------- BadgeHQ (vollständige Badge-Sammlung eines Accounts) ----------
+export interface OwnedBadge {
+  setId: string
+  version: string
+  title: string
+  description?: string
+  image: string
+}
+
+const bhqCache = new Map<string, Promise<OwnedBadge[] | null>>()
+
+/**
+ * Alle globalen Badges, die ein Account besitzt – über badgehq.xyz (Community-Dienst, keine
+ * offizielle API). null = Dienst nicht erreichbar oder Account unbekannt.
+ */
+export function ownedBadges(login: string): Promise<OwnedBadge[] | null> {
+  const l = login.toLowerCase()
+  let p = bhqCache.get(l)
+  if (!p) {
+    p = getJson<{ twitchBadges?: OwnedBadge[] }>(`https://www.badgehq.xyz/api/user/${encodeURIComponent(l)}`).then((r) => {
+      if (!r?.twitchBadges) {
+        bhqCache.delete(l) // beim nächsten Öffnen erneut versuchen
+        return null
+      }
+      return r.twitchBadges.filter((b) => b.setId && b.image)
+    })
+    bhqCache.set(l, p)
+  }
+  return p
+}
+
 // ---------- Öffentliche Chat-Logs (justlog auf logs.ivr.fi) ----------
 export interface LogLine {
   text: string
   timestamp: string
   displayName?: string
+  tags?: Record<string, string>
+}
+
+export interface BadgeSpan {
+  /** "set/version" */
+  key: string
+  first: number
+  last: number
+  /** Nachrichten mit diesem Badge */
+  count: number
+}
+
+/** Log-Abruf mit einer Wiederholung – logs.ivr.fi drosselt bei vielen Anfragen kurz */
+async function getLog<T>(url: string): Promise<T | null> {
+  const r = await getJson<T>(url)
+  if (r) return r
+  await new Promise((res) => setTimeout(res, 900))
+  return getJson<T>(url)
+}
+
+type BadgeHistory = { spans: BadgeSpan[]; months: number; messages: number }
+const badgeHistoryCache = new Map<string, BadgeHistory>()
+/** genug Stichproben – bei Vielschreibern nicht hunderttausende Nachrichten laden */
+const MAX_LOG_MESSAGES = 40_000
+
+/**
+ * Welche Badges jemand in einem Kanal getragen hat – aus den IRC-Tags der geloggten Nachrichten
+ * (logs.ivr.fi speichert sie mit). Durchsucht bis zu `months` Monate, neueste zuerst.
+ * null = Kanal wird nicht geloggt / Fehler
+ */
+export async function userBadgeHistory(channel: string, user: string, months = 12): Promise<BadgeHistory | null> {
+  const cacheKey = `${channel}/${user}/${months}`
+  const cached = badgeHistoryCache.get(cacheKey)
+  if (cached) return cached
+  const c = encodeURIComponent(channel)
+  const u = encodeURIComponent(user)
+  const list = await getLog<{ availableLogs?: { year: string; month: string }[] }>(`https://logs.ivr.fi/list?channel=${c}&user=${u}`)
+  if (!list?.availableLogs) return null
+  const todo = list.availableLogs.slice(0, months)
+  let scanned = 0
+  const spans = new Map<string, BadgeSpan>()
+  let messages = 0
+  // drei Monate gleichzeitig – schnell genug, ohne den Dienst zu überfahren
+  for (let i = 0; i < todo.length && messages < MAX_LOG_MESSAGES; i += 3) {
+    scanned = Math.min(todo.length, i + 3)
+    const pages = await Promise.all(
+      todo.slice(i, i + 3).map(({ year, month }) => getLog<{ messages?: LogLine[] }>(`https://logs.ivr.fi/channel/${c}/user/${u}/${year}/${month}?json=1`))
+    )
+    for (const page of pages) {
+      for (const m of page?.messages ?? []) {
+        const raw = m.tags?.badges
+        if (!raw) continue
+        messages++
+        const ts = new Date(m.timestamp).getTime()
+        for (const b of raw.split(',')) {
+          if (!b) continue
+          const s = spans.get(b)
+          if (!s) spans.set(b, { key: b, first: ts, last: ts, count: 1 })
+          else {
+            if (ts < s.first) s.first = ts
+            if (ts > s.last) s.last = ts
+            s.count++
+          }
+        }
+      }
+    }
+  }
+  const out = { spans: [...spans.values()], months: scanned, messages }
+  badgeHistoryCache.set(cacheKey, out)
+  return out
 }
 
 /** Letzte geloggte Nachrichten einer Person in einem Kanal (neueste zuerst). null = Kanal nicht geloggt / Fehler */

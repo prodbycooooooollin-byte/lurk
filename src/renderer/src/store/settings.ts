@@ -44,6 +44,8 @@ export interface Settings {
   /** Unsichtbar lurken: lesen ohne in der Zuschauerliste aufzutauchen */
   invisible: boolean
   desktopNotify: boolean
+  /** Mod-Radar: nur in Kanälen, in denen du Mod bist, überall (nur ansehen) oder aus */
+  modRadar: 'mod' | 'all' | 'off'
   pauseOnHover: boolean
   maxMessages: number
   showHistory: boolean
@@ -84,6 +86,7 @@ export const useSettings = create<Settings>()(
       imagePreviews: 'inline',
       invisible: false,
       desktopNotify: true,
+      modRadar: 'mod',
       pauseOnHover: true,
       maxMessages: 1500,
       showHistory: true,

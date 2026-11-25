@@ -1,3 +1,5 @@
+import type { RadarReason } from './modradar'
+
 export interface BadgeRef {
   set: string
   version: string
@@ -36,6 +38,8 @@ export interface ChatMessage {
   joins?: { login: string; part?: boolean }[]
   bits?: number
   self?: boolean
+  /** vom Mod-Radar markiert: warum */
+  radar?: RadarReason[]
 }
 
 export interface PresenceUser {

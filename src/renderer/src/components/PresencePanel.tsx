@@ -13,6 +13,9 @@ import { useHoverIntent } from '@/lib/useHoverIntent'
 import { cn, readableColor, relTime, timeShort, formatNumber, useThrottled } from '@/lib/util'
 import type { PresenceUser } from '@/lib/types'
 import { UserAvatar } from './UserAvatar'
+import { RadarFeed } from './RadarFeed'
+import { Audience } from './Audience'
+import { useRadar } from '@/lib/modradar'
 import { isNewAccount, useUserMeta } from '@/lib/avatars'
 import { getHistory, isRegular } from '@/lib/history'
 import { isBot } from '@/lib/bots'
@@ -425,6 +428,8 @@ export function PresencePanel({ channel, overlay, onPinned }: { channel?: string
   const t = useT()
   const tab = useUi((u) => u.panelTab)
   const set = useUi((u) => u.set)
+  const radarOn = useSettings((s) => s.modRadar) !== 'off'
+  const radarOpen = useRadar((r) => (channel ? (r.items[channel] ?? []).filter((i) => !i.handled).length : 0))
   return (
     <aside className="flex w-[300px] shrink-0 flex-col overflow-hidden border-l border-line bg-ground">
       <div className="flex h-[52px] shrink-0 items-end justify-between border-b border-line pl-4 pr-2">
@@ -434,9 +439,11 @@ export function PresencePanel({ channel, overlay, onPinned }: { channel?: string
           items={[
             ['presence', t('tabPresence')],
             ['activity', t('tabActivity')],
-            ['stats', t('tabStats')]
+            ['stats', t('tabStats')],
+            ['audience', t('tabAudience')],
+            ...(radarOn ? ([['radar', radarOpen ? `${t('tabRadar')} · ${radarOpen}` : t('tabRadar')]] as [PanelTab, string][]) : [])
           ]}
-          className="gap-5 [&>button]:pb-3.5"
+          className="min-w-0 gap-3.5 [&>button]:pb-3.5"
         />
         {overlay ? (
           <Tip label={t('keepOpen')}>
@@ -464,6 +471,10 @@ export function PresencePanel({ channel, overlay, onPinned }: { channel?: string
         <PresenceList key={channel} channel={channel} />
       ) : tab === 'activity' ? (
         <ActivityFeed key={channel} channel={channel} />
+      ) : tab === 'audience' ? (
+        <Audience key={channel} channel={channel} />
+      ) : tab === 'radar' ? (
+        <RadarFeed key={channel} channel={channel} />
       ) : (
         <Stats key={channel} channel={channel} />
       )}

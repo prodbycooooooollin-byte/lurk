@@ -149,10 +149,11 @@ export interface Badge {
   title: string
   url: string
   url4x: string
+  description?: string
 }
 interface IvrBadgeSet {
   set_id: string
-  versions: { id: string; title: string; image_url_1x: string; image_url_2x: string; image_url_4x: string }[]
+  versions: { id: string; title: string; description?: string; image_url_1x: string; image_url_2x: string; image_url_4x: string }[]
 }
 
 const globalBadges = new Map<string, Badge>()
@@ -160,7 +161,7 @@ const channelBadges = new Map<string, Map<string, Badge>>()
 
 function toMap(sets: IvrBadgeSet[] | null): Map<string, Badge> {
   const m = new Map<string, Badge>()
-  for (const s of sets ?? []) for (const v of s.versions) m.set(`${s.set_id}/${v.id}`, { title: v.title, url: v.image_url_2x, url4x: v.image_url_4x })
+  for (const s of sets ?? []) for (const v of s.versions) m.set(`${s.set_id}/${v.id}`, { title: v.title, url: v.image_url_2x, url4x: v.image_url_4x, description: v.description })
   return m
 }
 
@@ -177,6 +178,9 @@ export async function loadChannelBadges(channel: string): Promise<void> {
   channelBadges.set(channel, toMap(await getJson<IvrBadgeSet[]>(`https://api.ivr.fi/v2/twitch/badges/channel?login=${encodeURIComponent(channel)}`)))
   emit()
 }
+
+/** alle globalen Badges ("set/version" -> Badge) – für den Badge-Dex */
+export const globalBadgeList = (): [string, Badge][] => [...globalBadges.entries()]
 
 export function findBadge(channel: string, set: string, version: string): Badge | undefined {
   const key = `${set}/${version}`
