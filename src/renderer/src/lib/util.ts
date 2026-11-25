@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 import { t, locale } from './i18n'
@@ -130,4 +131,24 @@ export function parseDurationArg(s: string | undefined): number | undefined {
   const n = Number(m[1])
   const mult: Record<string, number> = { '': 1, s: 1, m: 60, h: 3600, d: 86400, w: 604800 }
   return n * mult[m[2].toLowerCase()]
+}
+
+/** Gibt einen Wert höchstens alle `ms` Millisekunden weiter – für teure Listen, die sich ständig ändern */
+export function useThrottled<T>(value: T, ms: number): T {
+  const [out, setOut] = useState(value)
+  const last = useRef(0)
+  useEffect(() => {
+    const wait = last.current + ms - Date.now()
+    if (wait <= 0) {
+      last.current = Date.now()
+      setOut(value)
+      return
+    }
+    const id = window.setTimeout(() => {
+      last.current = Date.now()
+      setOut(value)
+    }, wait)
+    return () => window.clearTimeout(id)
+  }, [value, ms])
+  return out
 }

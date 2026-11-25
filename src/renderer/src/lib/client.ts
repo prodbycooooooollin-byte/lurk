@@ -5,7 +5,7 @@ import { TwitchIrc, parseIrc, type IrcMessage } from './irc'
 import { parseEmoteTag } from './tokenize'
 import { findEmote, loadChannelBadges, loadChannelEmotes, loadGlobalBadges, loadGlobalEmotes, onEmotesChanged } from './emotes'
 import { helixBan, helixChatters, helixDeleteMessage, helixUnban, helixUserId, helixAnnounce, ivrUsers, recentMessages, refreshToken, validateToken } from './api'
-import type { BadgeRef, ChatMessage, HighlightKind } from './types'
+import type { BadgeRef, ChatMessage, HighlightKind, PresenceUser } from './types'
 import { useChat, emptyChannel, type ChannelState } from '@/store/chat'
 import { useSettings } from '@/store/settings'
 import { useUi } from '@/store/ui'
@@ -36,16 +36,20 @@ function flush(): void {
   const state = useChat.getState()
   const channels = { ...state.channels }
   const touched = new Set<string>()
+  const presenceTouched = new Set<string>()
+  const statsTouched = new Set<string>()
+  // Nachrichten und Aktivität werden kopiert (klein, die Liste braucht neue Arrays).
+  // presence und stats können in großen Kanälen zehntausende Einträge haben: die werden
+  // direkt verändert und nur über eine Versionsnummer gemeldet, statt 10× pro Sekunde kopiert.
   const get = (c: string): ChannelState => {
     if (!touched.has(c)) {
       const cur = channels[c] ?? emptyChannel(c)
-      channels[c] = {
-        ...cur,
-        messages: cur.messages.slice(),
-        presence: { ...cur.presence },
-        activity: cur.activity.slice(),
-        stats: { ...cur.stats, buckets: cur.stats.buckets.slice(), chatters: { ...cur.stats.chatters }, emotes: { ...cur.stats.emotes } }
-      }
+      const draft = { ...cur, messages: cur.messages.slice(), activity: cur.activity.slice() } as ChannelState
+      const presence = cur.presence
+      const stats = cur.stats
+      Object.defineProperty(draft, 'presence', { get: () => (presenceTouched.add(c), presence), enumerable: true, configurable: true })
+      Object.defineProperty(draft, 'stats', { get: () => (statsTouched.add(c), stats), enumerable: true, configurable: true })
+      channels[c] = draft
       touched.add(c)
     }
     return channels[c]
@@ -55,6 +59,12 @@ function flush(): void {
   const max = useSettings.getState().maxMessages
   for (const c of touched) {
     const ch = channels[c]
+    const presence = ch.presence
+    const stats = ch.stats
+    Object.defineProperty(ch, 'presence', { value: presence, writable: true, enumerable: true, configurable: true })
+    Object.defineProperty(ch, 'stats', { value: stats, writable: true, enumerable: true, configurable: true })
+    if (presenceTouched.has(c)) ch.presenceVersion++
+    if (statsTouched.has(c)) ch.statsVersion++
     if (ch.messages.length > max) ch.messages = ch.messages.slice(ch.messages.length - max)
     if (ch.activity.length > 600) ch.activity = ch.activity.slice(ch.activity.length - 600)
   }
@@ -159,9 +169,16 @@ function bumpStats(ch: ChannelState, msg: ChatMessage, firstMsg: boolean): void 
   }
 }
 
+/** Schreibt einen Eintrag und hält presentCount aktuell, ohne die Liste zu zählen */
+function putPresence(ch: ChannelState, user: PresenceUser): void {
+  const prev = ch.presence[user.login]
+  ch.presentCount += (user.present ? 1 : 0) - (prev?.present ? 1 : 0)
+  ch.presence[user.login] = user
+}
+
 function touchPresence(ch: ChannelState, login: string, patch: { displayName?: string; color?: string; badges?: BadgeRef[]; ts: number; message: boolean }): void {
   const prev = ch.presence[login]
-  ch.presence[login] = {
+  putPresence(ch, {
     login,
     joinedAt: prev ? prev.joinedAt : patch.message ? patch.ts : null,
     present: true,
@@ -172,7 +189,7 @@ function touchPresence(ch: ChannelState, login: string, patch: { displayName?: s
     color: patch.color || prev?.color,
     badges: patch.badges ?? prev?.badges,
     leftAt: undefined
-  }
+  })
 }
 
 function addJoinLine(ch: ChannelState, login: string, part: boolean, ts: number): void {
@@ -380,7 +397,7 @@ function handle(m: IrcMessage, historical = false): void {
         const ch = get(c)
         const prev = ch.presence[login]
         if (prev?.present) return
-        ch.presence[login] = { ...(prev ?? { login, msgCount: 0 }), login, joinedAt: now, present: true, leftAt: undefined }
+        putPresence(ch, { ...(prev ?? { login, msgCount: 0 }), login, joinedAt: now, present: true, leftAt: undefined })
         ch.activity.push({ id: ++activityId, type: 'join', login, at: now })
         if (s.inlineJoins) addJoinLine(ch, login, false, now)
       })
@@ -399,7 +416,7 @@ function handle(m: IrcMessage, historical = false): void {
       queue((get) => {
         const ch = get(c)
         const prev = ch.presence[login]
-        ch.presence[login] = { ...(prev ?? { login, msgCount: 0, joinedAt: null }), present: false, leftAt: now }
+        putPresence(ch, { ...(prev ?? { login, msgCount: 0, joinedAt: null }), present: false, leftAt: now })
         ch.activity.push({ id: ++activityId, type: 'part', login, at: now })
         if (inline) addJoinLine(ch, login, true, now)
       })
@@ -412,7 +429,7 @@ function handle(m: IrcMessage, historical = false): void {
         for (const login of names) {
           if (login === myLogin() || login.startsWith('justinfan')) continue
           const prev = ch.presence[login]
-          if (!prev?.present) ch.presence[login] = { ...(prev ?? { login, msgCount: 0 }), login, joinedAt: prev?.joinedAt ?? null, present: true }
+          if (!prev?.present) putPresence(ch, { ...(prev ?? { login, msgCount: 0 }), login, joinedAt: prev?.joinedAt ?? null, present: true })
         }
       })
       break
@@ -499,13 +516,13 @@ async function refreshHelixPresence(): Promise<void> {
         if (login === myLogin()) continue
         const prev = st.presence[login]
         if (prev?.present) continue
-        st.presence[login] = { ...(prev ?? { login, msgCount: 0 }), login, joinedAt: firstSnapshot ? prev?.joinedAt ?? null : now, present: true, leftAt: undefined }
+        putPresence(st, { ...(prev ?? { login, msgCount: 0 }), login, joinedAt: firstSnapshot ? prev?.joinedAt ?? null : now, present: true, leftAt: undefined })
         if (!firstSnapshot) st.activity.push({ id: ++activityId, type: 'join', login, at: now })
       }
       if (!firstSnapshot) {
         for (const p of Object.values(st.presence)) {
           if (p.present && !set.has(p.login) && !(p.lastMsgAt && now - p.lastMsgAt < 120_000)) {
-            st.presence[p.login] = { ...p, present: false, leftAt: now }
+            putPresence(st, { ...p, present: false, leftAt: now })
             st.activity.push({ id: ++activityId, type: 'part', login: p.login, at: now })
           }
         }

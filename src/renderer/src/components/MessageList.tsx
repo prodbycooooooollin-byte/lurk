@@ -21,6 +21,7 @@ export function MessageList({ messages, canMod, emptyText }: Props) {
   const pauseOnHover = useSettings((s) => s.pauseOnHover)
   const density = useSettings((s) => s.density)
   const fontSize = useSettings((s) => s.fontSize)
+  const alternate = useSettings((s) => s.alternateRows)
   const [atBottom, setAtBottom] = useState(true)
   const [hovered, setHovered] = useState(false)
   // Pause: solange die Maus über dem Chat ist, scrollt er nicht mit – nichts rutscht weg
@@ -86,7 +87,7 @@ export function MessageList({ messages, canMod, emptyText }: Props) {
         <div style={{ height: virt.getTotalSize(), position: 'relative' }}>
           {virt.getVirtualItems().map((item) => (
             <div key={item.key} data-index={item.index} ref={virt.measureElement} style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${item.start}px)` }}>
-              <MessageRow msg={list[item.index]} index={item.index} dark={dark} emoteVersion={emoteVersion} canMod={canMod} />
+              <MessageRow msg={list[item.index]} alt={alternate && item.index % 2 === 1} dark={dark} emoteVersion={emoteVersion} canMod={canMod} />
             </div>
           ))}
         </div>

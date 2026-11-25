@@ -6,13 +6,18 @@ export interface ChannelState {
   name: string
   joined: boolean
   messages: ChatMessage[]
+  /** Wird aus Performance-Gründen direkt verändert – auf presenceVersion hören, nicht auf das Objekt */
   presence: Record<string, PresenceUser>
+  presenceVersion: number
+  presentCount: number
   /** true, sobald Twitch die NAMES-Liste geschickt hat */
   namesReceived: boolean
   activity: ActivityEntry[]
   room: RoomState
   info: StreamInfo
+  /** Wird direkt verändert – auf statsVersion hören */
   stats: ChannelStats
+  statsVersion: number
   me: MeInChannel
   unread: number
   mentions: number
@@ -33,11 +38,14 @@ export const emptyChannel = (name: string): ChannelState => ({
   joined: false,
   messages: [],
   presence: {},
+  presenceVersion: 0,
+  presentCount: 0,
   namesReceived: false,
   activity: [],
   room: {},
   info: { live: false },
   stats: emptyStats(),
+  statsVersion: 0,
   me: { mod: false, broadcaster: false, vip: false, badges: [] },
   unread: 0,
   mentions: 0,

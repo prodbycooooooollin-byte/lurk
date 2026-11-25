@@ -26,7 +26,6 @@ export function Composer({ channel }: { channel: string }) {
   const roomId = useChat((s) => s.channels[channel]?.room.roomId)
   const room = useChat((s) => s.channels[channel]?.room)
   const emoteVersion = useChat((s) => s.emoteVersion)
-  const presence = useChat((s) => s.channels[channel]?.presence)
   const replyTo = useUi((u) => (u.replyTo?.channel === channel ? u.replyTo : null))
   const setUi = useUi((u) => u.set)
 
@@ -62,7 +61,7 @@ export function Composer({ channel }: { channel: string }) {
     const isAt = w.startsWith('@')
     const q = (isAt ? w.slice(1) : w.replace(/^:/, '')).toLowerCase()
     if (!isAt && q.length < 2) return []
-    const users = Object.values(presence ?? {})
+    const users = Object.values(useChat.getState().channels[channel]?.presence ?? {})
       .filter((p) => p.login.startsWith(q))
       .sort((a, b) => (b.lastMsgAt ?? 0) - (a.lastMsgAt ?? 0))
       .slice(0, isAt ? 8 : 3)
@@ -76,7 +75,7 @@ export function Composer({ channel }: { channel: string }) {
       .map((e) => ({ kind: 'emote' as const, name: e.name, url: e.url, source: e.source }))
     return [...emotes, ...users].slice(0, 8)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wordInfo, dismissed, presence, roomId, emoteVersion, t])
+  }, [wordInfo, dismissed, channel, roomId, emoteVersion, t])
 
   const insert = (value: string, replaceStart?: number): void => {
     const start = replaceStart ?? caret

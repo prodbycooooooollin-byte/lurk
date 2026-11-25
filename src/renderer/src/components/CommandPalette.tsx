@@ -9,6 +9,8 @@ import { joinChannel, reconnect } from '@/lib/client'
 import { useT } from '@/lib/i18n'
 import { Avatar, Button } from './ui'
 
+const EMPTY: ReturnType<typeof useChat.getState>['channels'] = {}
+
 export function addAndJoin(raw: string, asSplit = false): void {
   const before = useUi.getState().channels
   useUi.getState().addChannel(raw, asSplit)
@@ -19,7 +21,8 @@ export function CommandPalette() {
   const ui = useUi()
   const s = useSettings()
   const t = useT()
-  const channels = useChat((st) => st.channels)
+  // nur abonnieren, solange die Palette offen ist – sonst rendert sie bei jeder Chatnachricht mit
+  const channels = useChat((st) => (ui.paletteOpen ? st.channels : EMPTY))
   const [q, setQ] = useState('')
   const close = (): void => {
     ui.set({ paletteOpen: false })

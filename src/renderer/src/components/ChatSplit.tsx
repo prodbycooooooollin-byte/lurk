@@ -54,7 +54,7 @@ export function ChatSplit({ channel, index, focused, multi }: { channel: string;
   }, [ch, searchOpen, query])
 
   if (!ch) return null
-  const present = Object.values(ch.presence).filter((p) => p.present).length
+  const present = ch.presentCount
   const perMin = ch.stats.buckets.slice(-5).reduce((a, b) => a + b, 0) / 5
   const canMod = ch.me.mod || ch.me.broadcaster
   const info = ch.info

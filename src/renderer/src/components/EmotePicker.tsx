@@ -14,7 +14,8 @@ export function EmotePicker({ channel, roomId, onPick }: { channel: string; room
   const [q, setQ] = useState('')
   const [tab, setTab] = useState<Tab>('channel')
   const emoteVersion = useChat((s) => s.emoteVersion)
-  const used = useChat((s) => s.channels[channel]?.stats.emotes)
+  // stats wird direkt verändert: nur beim Öffnen neu lesen
+  const used = useMemo(() => (open ? { ...(useChat.getState().channels[channel]?.stats.emotes ?? {}) } : undefined), [open, channel])
 
   const lists = useMemo(() => emoteList(roomId), [roomId, emoteVersion, open]) // eslint-disable-line react-hooks/exhaustive-deps
   const all = useMemo(() => {

@@ -32,7 +32,7 @@ export function MentionsView() {
             <button onClick={() => showChannel(m.channel)} className="px-4 text-[11.5px] text-faint hover:text-ink">
               #{m.channel}
             </button>
-            <MessageRow msg={{ ...m, highlight: null }} index={0} dark={dark} emoteVersion={emoteVersion} canMod={false} />
+            <MessageRow msg={{ ...m, highlight: null }} alt={false} dark={dark} emoteVersion={emoteVersion} canMod={false} />
           </div>
         ))}
       </div>

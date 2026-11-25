@@ -9,7 +9,7 @@ import { openUserCard } from './MessageRow'
 import { findEmote } from '@/lib/emotes'
 import { useT } from '@/lib/i18n'
 import { IconButton, Tabs } from './ui'
-import { cn, readableColor, relTime, timeShort, formatNumber } from '@/lib/util'
+import { cn, readableColor, relTime, timeShort, formatNumber, useThrottled } from '@/lib/util'
 import type { PresenceUser } from '@/lib/types'
 
 type Filter = 'all' | 'new' | 'lurker' | 'active' | 'left'
@@ -33,7 +33,8 @@ function BigStat({ value, label }: { value: number | string; label: string }) {
 
 function PresenceList({ channel }: { channel: string }) {
   const t = useT()
-  const presence = useChat((s) => s.channels[channel]?.presence)
+  // Liste höchstens einmal pro Sekunde neu sortieren – in großen Kanälen sind das zehntausende Einträge
+  const presenceVersion = useThrottled(useChat((s) => s.channels[channel]?.presenceVersion ?? 0), 1000)
   const namesReceived = useChat((s) => s.channels[channel]?.namesReceived)
   const helix = useChat((s) => s.channels[channel]?.helixPresence)
   const watch = useSettings((s) => s.watchUsers)
@@ -45,7 +46,7 @@ function PresenceList({ channel }: { channel: string }) {
 
   const { list, counts } = useMemo(() => {
     const now = Date.now()
-    const all = Object.values(presence ?? {})
+    const all = Object.values(useChat.getState().channels[channel]?.presence ?? {})
     const present = all.filter((p) => p.present)
     const isNew = (p: PresenceUser) => p.joinedAt !== null && now - p.joinedAt < 10 * 60_000
     const isActive = (p: PresenceUser) => !!p.lastMsgAt && now - p.lastMsgAt < 10 * 60_000
@@ -64,7 +65,8 @@ function PresenceList({ channel }: { channel: string }) {
     const score = (p: PresenceUser) => (watch.includes(p.login) ? 4e13 : 0) + (filter === 'left' ? p.leftAt ?? 0 : Math.max(p.joinedAt ?? 0, p.lastMsgAt ?? 0))
     base.sort((a, b) => score(b) - score(a) || a.login.localeCompare(b.login))
     return { list: base, counts }
-  }, [presence, filter, q, watch])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [presenceVersion, channel, filter, q, watch])
 
   const virt = useVirtualizer({ count: list.length, getScrollElement: () => parentRef.current, estimateSize: () => 44, overscan: 12 })
   const filters: [Filter, string][] = [
@@ -167,7 +169,6 @@ function ActivityFeed({ channel }: { channel: string }) {
           {items.map((a, i) => (
             <motion.button
               key={a.id}
-              layout={i < 30 ? 'position' : false}
               initial={i < 30 ? { opacity: 0, y: -6 } : false}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.2, ease: 'easeOut' }}
@@ -191,7 +192,8 @@ function ActivityFeed({ channel }: { channel: string }) {
 
 function Stats({ channel }: { channel: string }) {
   const t = useT()
-  const stats = useChat((s) => s.channels[channel]?.stats)
+  useThrottled(useChat((s) => s.channels[channel]?.statsVersion ?? 0), 1000)
+  const stats = useChat.getState().channels[channel]?.stats
   const roomId = useChat((s) => s.channels[channel]?.room.roomId)
   useChat((s) => s.emoteVersion)
   if (!stats) return null

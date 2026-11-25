@@ -1,6 +1,5 @@
 import { memo, useMemo, type MouseEvent } from 'react'
 import * as CM from '@radix-ui/react-context-menu'
-import * as RTooltip from '@radix-ui/react-tooltip'
 import { Reply, Copy, UserRound, Trash2, Clock, Ban, Eye, CornerDownRight } from 'lucide-react'
 import type { ChatMessage } from '@/lib/types'
 import { tokenize, type Token } from '@/lib/tokenize'
@@ -8,6 +7,7 @@ import { findBadge } from '@/lib/emotes'
 import { cn, readableColor, timeShort } from '@/lib/util'
 import { useT } from '@/lib/i18n'
 import { useSettings } from '@/store/settings'
+import { useShallow } from 'zustand/react/shallow'
 import { useUi } from '@/store/ui'
 import { deleteMessage, timeoutUser, banUser } from '@/lib/client'
 
@@ -17,34 +17,23 @@ export function openUserCard(login: string, channel: string, e?: { clientX: numb
   useUi.getState().set({ userCard: { login: login.toLowerCase(), channel, x, y } })
 }
 
+// Kein eigener Tooltip pro Emote mehr: die Daten hängen als data-Attribute am Bild,
+// ein einziger <EmotePreview /> in App zeigt die große Vorschau beim Hovern.
 const EmoteImg = memo(function EmoteImg({ tk }: { tk: Extract<Token, { t: 'emote' }> }) {
-  const t = useT()
-  const img = <img className="emote" src={tk.e.url} alt={tk.e.name} loading="lazy" draggable={false} />
-  const source = { twitch: 'Twitch', '7tv': '7TV', bttv: 'BetterTTV', ffz: 'FrankerFaceZ' }[tk.e.source]
+  const data = {
+    'data-emote': [tk.e.name, ...tk.overlays.map((o) => o.name)].join(' + '),
+    'data-big': tk.e.url4x ?? tk.e.url,
+    'data-src': tk.e.source,
+    'data-scope': tk.e.scope
+  }
+  if (!tk.overlays.length) return <img className="emote" src={tk.e.url} alt={tk.e.name} loading="lazy" draggable={false} {...data} />
   return (
-    <RTooltip.Root delayDuration={250}>
-      <RTooltip.Trigger asChild>
-        {tk.overlays.length ? (
-          <span className="emote-stack">
-            {img}
-            {tk.overlays.map((o, i) => (
-              <img key={i} className="emote zw" src={o.url} alt={o.name} loading="lazy" draggable={false} />
-            ))}
-          </span>
-        ) : (
-          img
-        )}
-      </RTooltip.Trigger>
-      <RTooltip.Portal>
-        <RTooltip.Content side="top" sideOffset={6} className="z-[80] flex flex-col items-center gap-1 rounded-lg border border-line bg-raised p-3 shadow-xl">
-          <img src={tk.e.url4x ?? tk.e.url} alt="" className="h-16 w-auto" />
-          <span className="mt-1 text-[13px] font-medium text-ink">{[tk.e.name, ...tk.overlays.map((o) => o.name)].join(' + ')}</span>
-          <span className="text-[11.5px] text-faint">
-            {source} · {tk.e.scope === 'channel' ? t('emoteChannel') : t('emoteGlobal')}
-          </span>
-        </RTooltip.Content>
-      </RTooltip.Portal>
-    </RTooltip.Root>
+    <span className="emote-stack">
+      <img className="emote" src={tk.e.url} alt={tk.e.name} loading="lazy" draggable={false} {...data} />
+      {tk.overlays.map((o, i) => (
+        <img key={i} className="emote zw" src={o.url} alt={o.name} loading="lazy" draggable={false} {...data} />
+      ))}
+    </span>
   )
 })
 
@@ -142,14 +131,23 @@ function JoinLine({ msg }: { msg: ChatMessage }) {
 
 interface RowProps {
   msg: ChatMessage
-  index: number
+  /** nur bei "Zeilen abwechselnd einfärben" – kein Index, sonst rendert beim Kürzen jede Zeile neu */
+  alt: boolean
   dark: boolean
   emoteVersion: number
   canMod: boolean
 }
 
-export const MessageRow = memo(function MessageRow({ msg, index, dark, emoteVersion, canMod }: RowProps) {
-  const s = useSettings()
+export const MessageRow = memo(function MessageRow({ msg, alt, dark, emoteVersion, canMod }: RowProps) {
+  const s = useSettings(useShallow((st) => ({
+    deletedMode: st.deletedMode,
+    density: st.density,
+    timestamps: st.timestamps,
+    timestampSeconds: st.timestampSeconds,
+    showBadges: st.showBadges,
+    toggleList: st.toggleList
+  })))
+  const watched = useSettings((st) => !!msg.login && st.watchUsers.includes(msg.login))
   const t = useT()
   const set = useUi((u) => u.set)
 
@@ -175,7 +173,7 @@ export const MessageRow = memo(function MessageRow({ msg, index, dark, emoteVers
       className={cn(
         'chat-line group relative selectable',
         s.density === 'compact' ? 'px-3 py-0' : 'px-4 py-[3px]',
-        s.alternateRows && index % 2 === 1 && 'bg-ink/[0.025]',
+        alt && 'bg-ink/[0.025]',
         'hover:bg-ink/[0.035]',
         hl === 'mention' && 'bg-ink/[0.07] shadow-[inset_2px_0_0_rgb(var(--ink))]',
         hl === 'first' && 'shadow-[inset_2px_0_0_rgb(var(--join))]',
@@ -258,7 +256,7 @@ export const MessageRow = memo(function MessageRow({ msg, index, dark, emoteVers
             <UserRound size={14} /> {t('openUserCard')}
           </CM.Item>
           <CM.Item className="menu-item" onSelect={() => s.toggleList('watchUsers', login)}>
-            <Eye size={14} /> {s.watchUsers.includes(login) ? t('unwatch') : t('watchJoin')}
+            <Eye size={14} /> {watched ? t('unwatch') : t('watchJoin')}
           </CM.Item>
           {canMod && !msg.self && (
             <>

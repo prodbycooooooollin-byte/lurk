@@ -7,6 +7,7 @@ import { ChannelRail } from './components/ChannelRail'
 import { ChatSplit } from './components/ChatSplit'
 import { PresencePanel } from './components/PresencePanel'
 import { UserCard } from './components/UserCard'
+import { EmotePreview } from './components/EmotePreview'
 import { SettingsDialog } from './components/SettingsDialog'
 import { CommandPalette, JoinDialog, addAndJoin } from './components/CommandPalette'
 import { MentionsView } from './components/MentionsView'
@@ -148,6 +149,7 @@ export default function App() {
         </div>
       </div>
       <UserCard />
+      <EmotePreview />
       <SettingsDialog />
       <CommandPalette />
       <JoinDialog />
