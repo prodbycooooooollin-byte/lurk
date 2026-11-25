@@ -1,7 +1,7 @@
 {
   "name": "lurk",
   "productName": "Lurk",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Twitch chat client that shows who is in chat, not just who is talking. Splits, 7TV/BTTV/FFZ emotes, EN/DE.",
   "main": "./out/main/index.js",
   "author": "coooooooollin",
