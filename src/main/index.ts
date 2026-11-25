@@ -108,6 +108,35 @@ ipcMain.handle('net:fetch', async (_e, req: NetRequest): Promise<NetResponse> =>
   }
 })
 
+// ---------- Stream-Player in eigenem Fenster ----------
+const players = new Map<string, BrowserWindow>()
+ipcMain.on('player:open', (_e, channel: string) => {
+  if (!/^[a-z0-9_]{2,25}$/.test(channel)) return
+  const existing = players.get(channel)
+  if (existing && !existing.isDestroyed()) return existing.focus()
+  const p = new BrowserWindow({
+    width: 960,
+    height: 560,
+    minWidth: 320,
+    minHeight: 180,
+    title: `${channel} · Lurk`,
+    backgroundColor: '#000000',
+    autoHideMenuBar: true,
+    icon: join(__dirname, '../../build/icon.png'),
+    webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false }
+  })
+  p.setMenuBarVisibility(false)
+  p.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//.test(url)) void shell.openExternal(url)
+    return { action: 'deny' }
+  })
+  p.on('page-title-updated', (e) => e.preventDefault())
+  p.on('closed', () => players.delete(channel))
+  players.set(channel, p)
+  void p.loadURL(`https://player.twitch.tv/?channel=${channel}&parent=localhost&autoplay=true&muted=false`)
+})
+ipcMain.on('player:pin', (_e, channel: string, on: boolean) => players.get(channel)?.setAlwaysOnTop(on, 'floating'))
+
 ipcMain.on('win:minimize', () => win?.minimize())
 ipcMain.on('win:maximize', () => (win?.isMaximized() ? win.unmaximize() : win?.maximize()))
 ipcMain.on('win:close', () => win?.close())

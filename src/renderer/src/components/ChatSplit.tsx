@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import * as DM from '@radix-ui/react-dropdown-menu'
-import { Search, MoreHorizontal, X, ExternalLink, Download, RefreshCw, Columns2, Eraser } from 'lucide-react'
+import { Search, MoreHorizontal, X, ExternalLink, Download, RefreshCw, Columns2, Eraser, MonitorPlay } from 'lucide-react'
 import { MessageList } from './MessageList'
 import { Composer } from './Composer'
 import { Avatar, IconButton, Tip } from './ui'
@@ -118,6 +118,11 @@ export function ChatSplit({ channel, index, focused, multi }: { channel: string;
           </Tip>
         </div>
         <div className="flex items-center">
+          <Tip label={t('watchStream')}>
+            <IconButton onClick={() => window.bridge.openPlayer(channel)} className={cn(info.live && 'text-muted')}>
+              <MonitorPlay size={15} strokeWidth={1.75} />
+            </IconButton>
+          </Tip>
           <Tip label={t('searchChat')} shortcut="Ctrl F">
             <IconButton active={searchOpen} onClick={() => (searchOpen ? closeSearch() : ui.set({ searchOpen: { ...ui.searchOpen, [channel]: true } }))}>
               <Search size={15} strokeWidth={1.75} />
@@ -131,6 +136,9 @@ export function ChatSplit({ channel, index, focused, multi }: { channel: string;
             </DM.Trigger>
             <DM.Portal>
               <DM.Content align="end" sideOffset={6} className="menu">
+                <DM.Item className="menu-item" onSelect={() => window.bridge.openPlayer(channel)}>
+                  <MonitorPlay size={14} /> {t('watchStream')}
+                </DM.Item>
                 <DM.Item className="menu-item" onSelect={() => void window.bridge.open(`https://www.twitch.tv/${channel}`)}>
                   <ExternalLink size={14} /> {t('openOnTwitch')}
                 </DM.Item>

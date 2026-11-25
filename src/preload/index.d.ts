@@ -15,6 +15,7 @@ export interface Bridge {
   close: () => void
   pin: (on: boolean) => void
   flash: () => void
+  openPlayer: (channel: string) => void
   onWindowState: (cb: (s: { maximized: boolean }) => void) => () => void
   version: () => Promise<string>
   checkUpdate: () => Promise<UpdateState>

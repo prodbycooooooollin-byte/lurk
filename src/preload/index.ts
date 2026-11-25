@@ -13,6 +13,7 @@ const bridge = {
   close: () => ipcRenderer.send('win:close'),
   pin: (on: boolean) => ipcRenderer.send('win:pin', on),
   flash: () => ipcRenderer.send('win:flash'),
+  openPlayer: (channel: string) => ipcRenderer.send('player:open', channel),
   onWindowState: (cb: (s: { maximized: boolean }) => void) => {
     const h = (_: unknown, s: { maximized: boolean }): void => cb(s)
     ipcRenderer.on('win:state', h)

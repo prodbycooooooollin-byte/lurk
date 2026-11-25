@@ -29,6 +29,7 @@ export function installBrowserShim(): void {
     close: noop,
     pin: noop,
     flash: noop,
+    openPlayer: (c) => void window.open(`https://player.twitch.tv/?channel=${c}&parent=localhost`, '_blank', 'width=960,height=560'),
     onWindowState: off,
     version: async () => 'dev',
     checkUpdate: async () => ({ state: 'error', message: 'dev' }),
