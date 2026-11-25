@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1d1b25"/>
+      <stop offset="1" stop-color="#0a0a0c"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.36" r="0.5">
+      <stop offset="0" stop-color="#9146ff" stop-opacity="0.55"/>
+      <stop offset="0.55" stop-color="#9146ff" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#9146ff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="ink" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#d6d4de"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.14"/>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="ledge"><rect x="-4" y="-8" width="48" height="23.4"/></clipPath>
+    <mask id="pupils" maskUnits="userSpaceOnUse" x="-4" y="-8" width="48" height="52">
+      <rect x="-4" y="-8" width="48" height="52" fill="#fff"/>
+      <circle cx="16.1" cy="12" r="2.6" fill="#000"/>
+      <circle cx="26.5" cy="12" r="2.6" fill="#000"/>
+    </mask>
+  </defs>
+  <rect x="64" y="64" width="896" height="896" rx="208" fill="url(#bg)"/>
+  <rect x="64" y="64" width="896" height="896" rx="208" fill="url(#glow)"/>
+  <rect x="65.5" y="65.5" width="893" height="893" rx="206.5" fill="none" stroke="url(#rim)" stroke-width="3"/>
+  <g transform="translate(512 548) scale(15.5) translate(-20 -22.8)">
+    <g clip-path="url(#ledge)">
+      <g mask="url(#pupils)">
+        <ellipse cx="14.8" cy="13.6" rx="4.85" ry="6.5" fill="url(#ink)"/>
+        <ellipse cx="25.2" cy="13.6" rx="4.85" ry="6.5" fill="url(#ink)"/>
+      </g>
+    </g>
+    <path d="M11.5 17H28.5A8.5 8.5 0 0 1 37 25.5A8.5 8.5 0 0 1 28.5 34H15.2L10.1 37.5C9.3 38.05 8.3 37.35 8.55 36.45L9.25 33.6A8.5 8.5 0 0 1 3 25.5A8.5 8.5 0 0 1 11.5 17Z" fill="url(#ink)"/>
+  </g>
+</svg>

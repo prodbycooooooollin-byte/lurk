@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import * as RTooltip from '@radix-ui/react-tooltip'
 import { Toaster } from 'sonner'
 import { Hash } from 'lucide-react'
-import { TitleBar, LurkMark } from './components/TitleBar'
+import { TitleBar } from './components/TitleBar'
+import { LurkLogo } from './components/LurkLogo'
 import { ChannelRail } from './components/ChannelRail'
 import { ChatSplit } from './components/ChatSplit'
 import { SidePanel } from './components/PresencePanel'
@@ -24,7 +25,7 @@ function Welcome() {
     <div className="flex flex-1 items-center overflow-y-auto px-[8%] py-10">
       <div className="w-full max-w-[480px]">
         <div className="mb-8 text-ink">
-          <LurkMark size={28} />
+          <LurkLogo size={56} live peek />
         </div>
         <h1 className="text-[30px] font-semibold leading-[1.1] tracking-[-0.025em] [text-wrap:balance]">{t('welcomeTitle')}</h1>
         <p className="mt-3 text-[14px] leading-relaxed text-muted">{t('welcomeText')}</p>

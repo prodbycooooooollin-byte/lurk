@@ -12,6 +12,7 @@ import { useUi } from '@/store/ui'
 import { useAuth, helixCtx } from '@/store/auth'
 import { chime, formatDuration, parseDurationArg } from './util'
 import { t, type TKey } from './i18n'
+import { startleLogo } from '@/components/LurkLogo'
 
 type Op = (get: (c: string) => ChannelState, ctx: FlushCtx) => void
 interface FlushCtx {
@@ -277,6 +278,7 @@ function handle(m: IrcMessage, historical = false): void {
         }
       })
       if (!historical && (hl.kind === 'mention' || hl.kind === 'keyword')) {
+        startleLogo()
         if (hl.sound) chime('mention', useSettings.getState().soundVolume)
         notifyDesktop(t('inChannel', { u: msg.displayName ?? '', c }), msg.text)
       }
@@ -402,6 +404,7 @@ function handle(m: IrcMessage, historical = false): void {
         if (s.inlineJoins) addJoinLine(ch, login, false, now)
       })
       if (s.watchUsers.includes(login)) {
+        startleLogo()
         toast(t('watchJoined', { u: login, c }), { description: t('fromWatchlist') })
         if (s.joinSound) chime('join', s.soundVolume)
         notifyDesktop(t('watchedHere'), t('watchJoined', { u: login, c }))

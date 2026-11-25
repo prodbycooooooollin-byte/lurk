@@ -12,7 +12,7 @@ import { Button, IconButton, Input, Switch } from './ui'
 import { chime, cn } from '@/lib/util'
 import { toast } from 'sonner'
 import type { UpdateState } from '../../../preload/index.d'
-import { LurkMark } from './TitleBar'
+import { LurkLogo } from './LurkLogo'
 
 const TABS: { id: string; label: TKey }[] = [
   { id: 'look', label: 'sLook' },
@@ -451,7 +451,7 @@ function AboutTab() {
   return (
     <div className="space-y-6 py-4">
       <div className="flex items-center gap-3">
-        <LurkMark size={28} />
+        <LurkLogo size={36} live peek />
         <div>
           <div className="text-[16px] font-semibold">Lurk {version}</div>
           <div className="text-[12.5px] text-faint">{t('aboutDesc')}</div>

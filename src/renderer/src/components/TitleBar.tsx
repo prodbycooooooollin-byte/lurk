@@ -8,15 +8,11 @@ import { reconnect } from '@/lib/client'
 import { useT } from '@/lib/i18n'
 import { IconButton, Tip } from './ui'
 import { cn } from '@/lib/util'
+import { LurkLogo } from './LurkLogo'
 
+/** Statisches Zeichen (für Stellen ohne Animation) */
 export function LurkMark({ size = 16 }: { size?: number }) {
-  // A ring with an off-centre dot: someone watching quietly.
-  return (
-    <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden>
-      <circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth="1.5" />
-      <circle cx="9.6" cy="8" r="2.4" fill="currentColor" />
-    </svg>
-  )
+  return <LurkLogo size={size} />
 }
 
 export function TitleBar() {
@@ -33,8 +29,8 @@ export function TitleBar() {
 
   return (
     <header className="drag flex h-10 shrink-0 items-center gap-3 border-b border-line pr-1" style={{ paddingLeft: mac ? 84 : 14 }}>
-      <div className="flex items-center gap-2 text-ink">
-        <LurkMark />
+      <div className="no-drag flex items-center gap-2 text-ink">
+        <LurkLogo size={20} live peek />
         <span className="text-[13px] font-semibold tracking-[-0.01em]">lurk</span>
       </div>
       <Tip label={conn === 'connected' ? (login ? t('connectedAs', { name: login }) : t('connectedGuest')) : conn === 'connecting' ? t('connecting') : t('disconnectedClick')}>
