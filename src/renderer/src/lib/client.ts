@@ -1,3 +1,4 @@
+import { create } from 'zustand'
 import { recordBadges, startBadgeDex } from './badgedex'
 import { assessMessage, noteBan, type RadarReason } from './modradar'
 import { startSevenTv, watchSevenTvRoom, type EmoteChange } from './seventv'
@@ -507,6 +508,29 @@ let irc: TwitchIrc | null = null
 let writer: TwitchIrc | null = null
 let writerReady: Promise<void> | null = null
 let writerResolve: (() => void) | null = null
+/** Nach dem letzten Senden so lange im Kanal bleiben, dann wieder verlassen (unsichtbar werden) */
+const WRITER_LINGER = 60_000
+const writerTimers = new Map<string, number>()
+
+/** Wo man im Unsichtbar-Modus gerade sichtbar ist (weil man dort kürzlich geschrieben hat) */
+export const useVisibleIn = create<{ channels: string[] }>()(() => ({ channels: [] }))
+const syncVisible = (): void => useVisibleIn.setState({ channels: [...writerTimers.keys()] })
+
+/** Schreib-Verbindung verlässt den Kanal nach einer Minute Ruhe wieder */
+function lingerThenPart(c: string): void {
+  window.clearTimeout(writerTimers.get(c))
+  writerTimers.set(
+    c,
+    window.setTimeout(() => {
+      writerTimers.delete(c)
+      writer?.part(c)
+      syncVisible()
+      // niemand mehr offen: Verbindung ganz schließen
+      if (!writerTimers.size) stopWriter()
+    }, WRITER_LINGER)
+  )
+  syncVisible()
+}
 
 const authPair = (): { login: string; token: string } | null => {
   const a = useAuth.getState()
@@ -539,6 +563,9 @@ function stopWriter(): void {
   writer?.disconnect()
   writer = null
   writerReady = null
+  for (const tm of writerTimers.values()) window.clearTimeout(tm)
+  writerTimers.clear()
+  syncVisible()
 }
 
 /** Unsichtbar-Modus umgeschaltet: lesende Verbindung neu anmelden */
@@ -873,6 +900,7 @@ async function sendRaw(c: string, text: string, replyTo?: string): Promise<boole
     toast.error(t('tooMany'))
     return false
   }
+  if (out === writer) lingerThenPart(c)
   // Twitch schickt eigene Nachrichten nicht zurück: lokal anzeigen
   const a = useAuth.getState()
   const ch = useChat.getState().channels[c]

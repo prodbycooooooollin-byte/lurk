@@ -5,7 +5,7 @@ import type { UpdateState } from '../../../preload/index.d'
 import { useUi } from '@/store/ui'
 import { useChat } from '@/store/chat'
 import { useAuth } from '@/store/auth'
-import { reconnect } from '@/lib/client'
+import { reconnect, useVisibleIn } from '@/lib/client'
 import { useT } from '@/lib/i18n'
 import { IconButton, Tip } from './ui'
 import { cn } from '@/lib/util'
@@ -22,6 +22,7 @@ export function TitleBar() {
   const conn = useChat((s) => s.conn)
   const login = useAuth((a) => a.login)
   const invisible = useSettings((s) => s.invisible)
+  const visibleIn = useVisibleIn((v) => v.channels)
   const [max, setMax] = useState(false)
   const [upd, setUpd] = useState<UpdateState>({ state: 'idle' })
   const mac = window.bridge.platform === 'darwin'
@@ -42,9 +43,10 @@ export function TitleBar() {
         </button>
       </Tip>
       {invisible && login && (
-        <Tip label={t('invisibleOn')}>
-          <span className="no-drag -ml-1.5 flex items-center text-faint">
+        <Tip label={visibleIn.length ? t('invisibleExcept', { c: visibleIn.map((c) => `#${c}`).join(', ') }) : t('invisibleOn')}>
+          <span className={cn('no-drag -ml-1.5 flex items-center gap-1 text-[11px]', visibleIn.length ? 'text-warn' : 'text-faint')}>
             <EyeOff size={13} strokeWidth={1.75} />
+            {visibleIn.length > 0 && visibleIn.length}
           </span>
         </Tip>
       )}
