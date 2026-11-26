@@ -105,13 +105,11 @@ export function ChatSplit({ channel, index, focused, multi }: { channel: string;
       className={cn('relative flex min-w-[280px] flex-1 flex-col overflow-hidden', multi && index > 0 && 'border-l border-line')}
       style={accentVars(accent, dark)}
     >
-      {multi && focused && <span className="absolute inset-x-0 top-0 z-10 h-[2px] bg-[hsl(var(--ch)/0.85)] transition-colors duration-500" />}
+      {multi && focused && <span className="absolute inset-x-0 top-0 z-10 h-px bg-[hsl(var(--ch)/0.8)]" />}
       <header className="relative flex h-[52px] shrink-0 items-center gap-3 border-b border-line px-4">
-        {/* leichter Schein in der Kanalfarbe */}
-        {accent && <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(90%_220%_at_0%_0%,hsl(var(--ch)/0.13),transparent_65%)] transition-opacity duration-700" />}
-        <span className={cn('relative rounded-full', accent && 'ring-[1.5px] ring-[hsl(var(--ch)/0.7)] ring-offset-[1.5px] ring-offset-ground')}>
-          <Avatar src={info.avatar} name={channel} size={28} className="flex" />
-        </span>
+        {/* haarfeine Linie in der Kanalfarbe, die nach rechts ausläuft */}
+        {accent && <span className="pointer-events-none absolute inset-x-0 -bottom-px h-px bg-[linear-gradient(90deg,hsl(var(--ch)/0.75),hsl(var(--ch)/0.18)_45%,transparent_80%)]" />}
+        <Avatar src={info.avatar} name={channel} size={28} />
         <div className="relative min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="truncate text-[13.5px] font-semibold">{info.displayName ?? channel}</span>

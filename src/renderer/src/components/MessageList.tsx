@@ -141,8 +141,9 @@ export function MessageList({ messages, canMod, emptyText, markerId, onMarkerCle
       {((paused && newWhilePaused > 0) || !atBottom) && (
         <button
           onClick={jump}
-          className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full bg-[hsl(var(--ch))] px-3 py-1.5 text-[12px] font-medium text-ground shadow-lg transition hover:brightness-110"
+          className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full bg-ink px-3 py-1.5 text-[12px] font-medium text-ground shadow-lg transition hover:bg-ink/85"
         >
+          <span className="h-1.5 w-1.5 rounded-full bg-[hsl(var(--ch))]" />
           {paused ? <Pause size={12} /> : <ArrowDown size={12} />}
           {paused ? t('paused') : t('jumpDown')}
           {unseen > 0 && <span className="tabular-nums opacity-60">{t('newCount', { n: unseen > 999 ? '999+' : unseen })}</span>}

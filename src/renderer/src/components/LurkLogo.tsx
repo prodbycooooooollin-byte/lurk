@@ -53,10 +53,22 @@ class Spring {
     this.target = x
   }
   step(dt: number): void {
+    // In feinen Teilschritten rechnen: mit einem ganzen Frame (bis 50 ms) als Schritt wurde die
+    // straffe Lid-Feder instabil, schaukelte sich auf 1e21 auf und kam nie zur Ruhe – das Logo
+    // lief dann dauerhaft jedes Frame und warf Fehler (spürbar als Ruckeln in der ganzen App).
     const c = 2 * Math.sqrt(this.k) * this.damping
-    const a = this.k * (this.target - this.x) - c * this.v
-    this.v += a * dt
-    this.x += this.v * dt
+    const n = Math.max(1, Math.ceil(dt / (1 / 240)))
+    const h = dt / n
+    for (let i = 0; i < n; i++) {
+      const a = this.k * (this.target - this.x) - c * this.v
+      this.v += a * h
+      this.x += this.v * h
+    }
+    // Notbremse, falls doch einmal etwas entgleist
+    if (!Number.isFinite(this.x) || Math.abs(this.x - this.target) > 100) {
+      this.x = this.target
+      this.v = 0
+    }
   }
   get settled(): boolean {
     return Math.abs(this.target - this.x) < 0.002 && Math.abs(this.v) < 0.002

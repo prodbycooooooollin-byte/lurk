@@ -84,7 +84,7 @@ export function useAccent(url: string | undefined): Accent | null {
 /** CSS-Variablen für einen Bereich: --ch = Akzent (HSL-Werte), passend zu hellem/dunklem Theme */
 export function accentVars(a: Accent | null, dark: boolean): React.CSSProperties | undefined {
   if (!a) return undefined
-  const s = Math.round(Math.max(38, Math.min(78, a.s * 100)))
-  const l = dark ? 64 : 42
+  const s = Math.round(Math.max(28, Math.min(58, a.s * 100 * 0.8)))
+  const l = dark ? 66 : 44
   return { ['--ch' as string]: `${Math.round(a.h)} ${s}% ${l}%` }
 }

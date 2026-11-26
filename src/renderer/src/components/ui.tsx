@@ -5,7 +5,7 @@ import { cn } from '@/lib/util'
 
 export function Tip({ label, children, side = 'bottom', shortcut }: { label: ReactNode; children: ReactNode; side?: 'top' | 'bottom' | 'left' | 'right'; shortcut?: string }) {
   return (
-    <RTooltip.Root delayDuration={400}>
+    <RTooltip.Root delayDuration={220}>
       <RTooltip.Trigger asChild>{children}</RTooltip.Trigger>
       <RTooltip.Portal>
         <RTooltip.Content side={side} sideOffset={6} className="z-[80] flex items-center gap-2 rounded-md bg-ink px-2 py-1 text-[12px] font-medium text-ground">

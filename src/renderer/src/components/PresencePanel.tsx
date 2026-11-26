@@ -302,7 +302,7 @@ function Stats({ channel }: { channel: string }) {
 export function SidePanel({ channel }: { channel: string }) {
   const pinned = useUi((u) => u.panelOpen)
   const cardOpen = useUi((u) => !!u.userCard)
-  const hover = useHoverIntent(340, 300)
+  const hover = useHoverIntent(120, 220)
   const inside = useRef(false)
   // Solange eine Infocard offen ist (z. B. aus der Liste geöffnet), bleibt das Overlay stehen
   const { leave } = hover

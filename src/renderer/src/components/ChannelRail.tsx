@@ -5,7 +5,7 @@ import { useUi } from '@/store/ui'
 import { useChat } from '@/store/chat'
 import { partChannel } from '@/lib/client'
 import { useT } from '@/lib/i18n'
-import { Avatar, Tip } from './ui'
+import { Avatar } from './ui'
 import { cn, formatNumber } from '@/lib/util'
 import { useHoverIntent } from '@/lib/useHoverIntent'
 import { useSettings } from '@/store/settings'
@@ -20,7 +20,7 @@ export function ChannelRail() {
   const [seenMentions, setSeenMentions] = useState(0)
   const active = ui.view === 'chat' ? ui.splits[ui.focused] : undefined
   const pinned = !ui.railCollapsed
-  const hover = useHoverIntent(340, 260)
+  const hover = useHoverIntent(110, 180)
   // eingeklappt: 52 px breit, beim Hovern fährt die volle Liste als Overlay über den Chat
   const expanded = pinned || hover.hover
   const floating = !pinned && hover.hover
@@ -28,15 +28,22 @@ export function ChannelRail() {
   const liveCount = useLive((l) => l.streams?.length ?? 0)
 
   return (
-    <div className={cn('relative shrink-0 transition-[width] duration-200 ease-out', pinned ? 'w-[208px]' : 'w-[52px]')}>
+    <div className={cn('relative shrink-0 border-r border-line transition-[width] duration-200 ease-out', pinned ? 'w-[208px]' : 'w-[52px]')}>
+    {/* Schatten als eigene Ebene: am aufgedeckten Panel würde er mit abgeschnitten */}
+    <div
+      className="pointer-events-none absolute inset-y-0 left-0 z-30 w-[208px] shadow-[16px_0_48px_-16px_rgba(0,0,0,0.6)] transition-opacity duration-150"
+      style={{ opacity: floating ? 1 : 0 }}
+    />
+    {/* Die Liste liegt immer in voller Breite da und wird nur aufgedeckt (clip-path) –
+        das braucht kein Neu-Layout pro Frame und läuft deshalb flüssig, anders als eine Breiten-Animation. */}
     <nav
       onMouseEnter={pinned ? undefined : hover.enter}
       onMouseLeave={pinned ? undefined : hover.leave}
-      className={cn(
-        'absolute inset-y-0 left-0 z-40 flex flex-col overflow-hidden border-r border-line bg-ground py-2 transition-[width,box-shadow] duration-200 ease-out',
-        expanded ? 'w-[208px]' : 'w-[52px]',
-        floating && 'shadow-[16px_0_48px_-16px_rgba(0,0,0,0.6)]'
-      )}
+      className={cn('absolute inset-y-0 left-0 z-40 flex w-[208px] flex-col overflow-hidden bg-ground py-2', expanded && 'border-r border-line')}
+      style={{
+        clipPath: expanded ? 'inset(0 0 0 0)' : 'inset(0 156px 0 0)',
+        transition: 'clip-path 170ms cubic-bezier(.2,.8,.2,1)'
+      }}
     >
       <Row
         expanded={expanded}
@@ -120,9 +127,9 @@ export function ChannelRail() {
         <Row expanded={expanded} onClick={() => ui.set({ joinOpen: true })} icon={<Plus size={15} strokeWidth={1.75} />} label={t('addChannel')} quiet />
       </div>
       <Row expanded={expanded} onClick={() => ui.set({ settingsOpen: true })} icon={<Settings size={15} strokeWidth={1.75} />} label={t('settings')} quiet />
-      {expanded && (
+      {(
         <Row
-          expanded
+          expanded={expanded}
           onClick={() => {
             hover.reset()
             ui.set({ railCollapsed: pinned })
@@ -176,8 +183,8 @@ function Row({ expanded, active, quiet, icon, label, meta, count, unread, onClic
     >
       {active && <span className="absolute -left-2 top-1.5 h-5 w-[3px] rounded-r-full bg-[hsl(var(--ch))]" />}
       <span className="flex w-[22px] shrink-0 justify-center">{icon}</span>
-      {expanded && <span className={cn('min-w-0 flex-1 truncate text-[13px]', (active || unread) && 'font-medium text-ink')}>{label}</span>}
-      {expanded && meta && !count && <span className={cn('text-[11px] tabular-nums text-faint', onRemove && 'group-hover/row:hidden')}>{meta}</span>}
+      <span className={cn('min-w-0 flex-1 truncate text-[13px] transition-opacity duration-150', (active || unread) && 'font-medium text-ink', !expanded && 'opacity-0')}>{label}</span>
+      {meta && !count && <span className={cn('text-[11px] tabular-nums text-faint transition-opacity duration-150', onRemove && expanded && 'group-hover/row:hidden', !expanded && 'opacity-0')}>{meta}</span>}
       {expanded && onRemove && (
         <button
           onClick={(e) => {
@@ -192,11 +199,11 @@ function Row({ expanded, active, quiet, icon, label, meta, count, unread, onClic
         </button>
       )}
       {!!count && (
-        <span className={cn('flex h-4 min-w-4 items-center justify-center rounded-full bg-ink px-1 text-[10px] font-semibold text-ground', !expanded && 'absolute right-0.5 top-0')}>
+        <span className={cn('flex h-4 min-w-4 items-center justify-center rounded-full bg-ink px-1 text-[10px] font-semibold text-ground', !expanded && 'absolute left-[22px] top-0')}>
           {count > 99 ? '99+' : count}
         </span>
       )}
     </div>
   )
-  return expanded ? btn : <Tip label={label} side="right">{btn}</Tip>
+  return btn
 }

@@ -37,7 +37,7 @@ export function EmotePreview() {
           })
         } else if (el.dataset.image) setP({ image: true, name: '', big: el.dataset.image, source: '', scope: '', x: r.left + r.width / 2, y: r.top })
         else setP({ name: el.dataset.emote ?? '', big: el.dataset.big ?? '', source: el.dataset.src ?? '', scope: el.dataset.scope ?? '', x: r.left + r.width / 2, y: r.top })
-      }, 220)
+      }, 110)
     }
     const hide = (): void => {
       current = null

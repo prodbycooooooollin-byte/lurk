@@ -96,7 +96,7 @@ export default function App() {
   const multi = ui.splits.length > 1
 
   return (
-    <RTooltip.Provider>
+    <RTooltip.Provider delayDuration={220} skipDelayDuration={400}>
       <div className="flex h-full flex-col">
         <TitleBar />
         <div className="flex min-h-0 flex-1">

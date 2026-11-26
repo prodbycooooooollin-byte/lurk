@@ -168,7 +168,7 @@ function Tile({ s, index }: { s: LiveStream; index: number }) {
       transition={{ duration: 0.25, delay: Math.min(index, 12) * 0.03, ease: [0.2, 0.8, 0.2, 1] }}
       onClick={(e) => (e.ctrlKey || e.metaKey ? openLiveSplit(s.login) : openLive(s.login))}
       style={accentVars(accent, dark)}
-      className="group flex flex-col overflow-hidden rounded-[12px] border border-line bg-raised/30 text-left transition-[border-color,transform] duration-200 hover:-translate-y-0.5 hover:border-[hsl(var(--ch)/0.6)]"
+      className="group flex flex-col overflow-hidden rounded-[12px] border border-line bg-raised/30 text-left transition-[border-color,transform] duration-200 hover:-translate-y-0.5 hover:border-[hsl(var(--ch)/0.35)]"
     >
       <div className="relative aspect-video w-full overflow-hidden bg-raised">
         {s.thumb && (
@@ -188,9 +188,7 @@ function Tile({ s, index }: { s: LiveStream; index: number }) {
         {s.startedAt && <span className="absolute bottom-2 right-2 text-[11px] tabular-nums text-white/70">{durationSince(s.startedAt)}</span>}
       </div>
       <div className="flex min-w-0 gap-2.5 p-3">
-        <span className={cn('shrink-0 self-start rounded-full', accent && 'ring-[1.5px] ring-[hsl(var(--ch)/0.7)] ring-offset-[1.5px] ring-offset-ground')}>
-          <Avatar src={s.avatar} name={s.login} size={30} className="flex" />
-        </span>
+        <Avatar src={s.avatar} name={s.login} size={30} className="shrink-0 self-start" />
         <div className="min-w-0 flex-1">
           <div className="truncate text-[13px] font-semibold text-ink">{s.displayName}</div>
           <div className="truncate text-[12px] text-muted" title={s.title}>
