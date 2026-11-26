@@ -98,3 +98,76 @@ export function resolveMedia(href: string): Promise<string | null> {
   }
   return p
 }
+
+// ---------- Karten für YouTube-Videos und Twitch-Clips ----------
+export interface LinkCard {
+  kind: 'youtube' | 'clip'
+  title: string
+  author?: string
+  thumb?: string
+  /** Clip: Aufrufe */
+  views?: number
+  /** Clip: Länge in Sekunden */
+  duration?: number
+  /** Clip: Kanal */
+  channel?: string
+}
+
+/** YouTube-Video-ID aus watch-, youtu.be- und Shorts-Links */
+export function youtubeId(href: string): string | null {
+  const u = parse(href)
+  if (!u) return null
+  const host = u.hostname.replace(/^(www|m)\./, '')
+  if (host === 'youtu.be') return /^\/([\w-]{11})/.exec(u.pathname)?.[1] ?? null
+  if (host === 'youtube.com' || host === 'music.youtube.com') {
+    if (u.pathname === '/watch') return /^[\w-]{11}$/.test(u.searchParams.get('v') ?? '') ? u.searchParams.get('v') : null
+    return /^\/(?:shorts|live|embed)\/([\w-]{11})/.exec(u.pathname)?.[1] ?? null
+  }
+  return null
+}
+
+/** Slug eines Twitch-Clips */
+export function clipSlug(href: string): string | null {
+  const u = parse(href)
+  if (!u) return null
+  const host = u.hostname.replace(/^(www|m)\./, '')
+  if (host === 'clips.twitch.tv') return /^\/([\w-]{10,})$/.exec(u.pathname)?.[1] ?? null
+  if (host === 'twitch.tv') return /^\/(?:[a-z0-9_]+\/)?clip\/([\w-]{10,})$/i.exec(u.pathname)?.[1] ?? null
+  return null
+}
+
+export const isCardLink = (href: string): boolean => !!youtubeId(href) || !!clipSlug(href)
+
+const cardCache = new Map<string, Promise<LinkCard | null>>()
+
+/** Daten für eine Link-Karte; Clips brauchen eine Anmeldung (Twitch-API), sonst null */
+export function resolveCard(href: string, helix?: { clientId: string; token: string } | null): Promise<LinkCard | null> {
+  const yt = youtubeId(href)
+  const slug = clipSlug(href)
+  const key = yt ? `yt:${yt}` : slug ? `clip:${slug}` : ''
+  if (!key) return Promise.resolve(null)
+  let p = cardCache.get(key)
+  if (p) return p
+  if (yt) {
+    p = window.bridge
+      .fetch({ url: `https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(`https://www.youtube.com/watch?v=${yt}`)}` })
+      .then((r) => {
+        if (!r.ok) return null
+        const d = JSON.parse(r.body) as { title?: string; author_name?: string }
+        return d.title ? { kind: 'youtube' as const, title: d.title, author: d.author_name, thumb: `https://i.ytimg.com/vi/${yt}/mqdefault.jpg` } : null
+      })
+      .catch(() => null)
+  } else {
+    if (!helix) return Promise.resolve(null)
+    p = window.bridge
+      .fetch({ url: `https://api.twitch.tv/helix/clips?id=${encodeURIComponent(slug!)}`, headers: { 'Client-Id': helix.clientId, Authorization: `Bearer ${helix.token}` } })
+      .then((r) => {
+        if (!r.ok) return null
+        const c = (JSON.parse(r.body) as { data?: { title: string; creator_name: string; broadcaster_name: string; thumbnail_url: string; view_count: number; duration: number }[] }).data?.[0]
+        return c ? { kind: 'clip' as const, title: c.title, author: c.creator_name, channel: c.broadcaster_name, thumb: c.thumbnail_url, views: c.view_count, duration: c.duration } : null
+      })
+      .catch(() => null)
+  }
+  cardCache.set(key, p)
+  return p
+}

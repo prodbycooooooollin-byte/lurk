@@ -112,7 +112,7 @@ export async function loadChannelEmotes(roomId: string): Promise<void> {
   if (!roomId || loadedChannels.has(roomId)) return
   loadedChannels.add(roomId)
   const [stv, bttv, ffz] = await Promise.all([
-    getJson<{ emote_set?: { emotes?: SevenTvEmote[] } }>(`https://7tv.io/v3/users/twitch/${roomId}`),
+    getJson<{ emote_set?: { id?: string; emotes?: SevenTvEmote[] } }>(`https://7tv.io/v3/users/twitch/${roomId}`),
     getJson<{ channelEmotes: BttvEmote[]; sharedEmotes: BttvEmote[] }>(`https://api.betterttv.net/3/cached/users/twitch/${roomId}`),
     getJson<{ room: { set: number }; sets: Record<string, FfzSet> }>(`https://api.frankerfacez.com/v1/room/id/${roomId}`)
   ])
@@ -125,7 +125,48 @@ export async function loadChannelEmotes(roomId: string): Promise<void> {
     map.set(e.name, e)
   }
   channelEmotes.set(roomId, map)
+  const setId = stv?.emote_set?.id
+  if (setId) {
+    stvSets.set(roomId, setId)
+    stvSetRoom.set(setId, roomId)
+  }
   emit()
+}
+
+// ---------- 7TV-Emote-Set live ändern ----------
+const stvSets = new Map<string, string>() // roomId -> 7TV-Set
+const stvSetRoom = new Map<string, string>() // 7TV-Set -> roomId
+
+export const sevenTvSetId = (roomId: string): string | undefined => stvSets.get(roomId)
+
+/** Änderung aus der 7TV EventAPI einspielen und melden */
+export function applySevenTvChange(
+  setId: string,
+  action: 'added' | 'removed' | 'renamed',
+  emote: { id: string; name: string; data?: { animated?: boolean; flags?: number } },
+  oldName: string | undefined,
+  actor: string | undefined,
+  report: ((c: { channelRoomId: string; action: 'added' | 'removed' | 'renamed'; name: string; oldName?: string; url: string; actor?: string }) => void) | null
+): void {
+  const roomId = stvSetRoom.get(setId)
+  const map = roomId ? channelEmotes.get(roomId) : undefined
+  if (!roomId || !map) return
+  const base = `https://cdn.7tv.app/emote/${emote.id}`
+  if (action === 'removed') map.delete(emote.name)
+  else {
+    if (oldName) map.delete(oldName)
+    map.set(emote.name, {
+      name: emote.name,
+      url: `${base}/2x.webp`,
+      url4x: `${base}/4x.webp`,
+      source: '7tv',
+      animated: !!emote.data?.animated,
+      zeroWidth: ((emote.data?.flags ?? 0) & 256) !== 0,
+      scope: 'channel'
+    })
+  }
+  emit()
+  report?.({ channelRoomId: roomId, action, name: emote.name, oldName, url: `${base}/2x.webp`, actor })
 }
 
 export function reloadChannelEmotes(roomId: string): Promise<void> {

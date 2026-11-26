@@ -5,8 +5,12 @@ import type { ChatMessage } from '@/lib/types'
 import { tokenize, type Token } from '@/lib/tokenize'
 import { findBadge } from '@/lib/emotes'
 import { cn, readableColor, timeShort } from '@/lib/util'
-import { imageUrl, isVideo, pageToResolve, resolveMedia } from '@/lib/linkPreview'
+import { imageUrl, isCardLink, isVideo, pageToResolve, resolveCard, resolveMedia, type LinkCard } from '@/lib/linkPreview'
+import { helixCtx } from '@/store/auth'
+import { Play, Clapperboard } from 'lucide-react'
 import { useT } from '@/lib/i18n'
+import { UserAvatar } from './UserAvatar'
+import { paintStyle, useStvCosmetics } from '@/lib/seventv'
 import { useSettings } from '@/store/settings'
 import { useShallow } from 'zustand/react/shallow'
 import { useUi } from '@/store/ui'
@@ -86,7 +90,7 @@ function mediaLinks(text: string): string[] {
   for (const w of text.split(/\s+/)) {
     if (!/^(https?:\/\/|www\.)/i.test(w)) continue
     const href = w.startsWith('http') ? w : `https://${w}`
-    if ((imageUrl(href) || pageToResolve(href)) && !out.includes(href)) out.push(href)
+    if ((imageUrl(href) || pageToResolve(href) || isCardLink(href)) && !out.includes(href)) out.push(href)
     if (out.length >= 3) break
   }
   return out
@@ -99,12 +103,65 @@ const ImagePreviews = memo(function ImagePreviews({ text }: { text: string }) {
   if (!links.length) return null
   return (
     <div className="mb-1 mt-1 flex gap-2">
-      {links.map((href) => (
-        <InlineMedia key={href} href={href} />
-      ))}
+      {links.map((href) => (isCardLink(href) ? <InlineCard key={href} href={href} /> : <InlineMedia key={href} href={href} />))}
     </div>
   )
 })
+
+/** Kompakte Karte für YouTube-Videos und Twitch-Clips: Vorschaubild, Titel, Kanal */
+function InlineCard({ href }: { href: string }) {
+  const t = useT()
+  const [card, setCard] = useState<LinkCard | null | undefined>(undefined)
+  useEffect(() => {
+    let alive = true
+    void resolveCard(href, helixCtx()).then((c) => alive && setCard(c))
+    return () => {
+      alive = false
+    }
+  }, [href])
+  if (card === null) return null
+  const open = (e: MouseEvent): void => {
+    e.preventDefault()
+    void window.bridge.open(href)
+  }
+  const dur = card?.duration ? `${Math.floor(card.duration / 60)}:${String(Math.round(card.duration % 60)).padStart(2, '0')}` : undefined
+  return (
+    <a
+      href={href}
+      onClick={open}
+      data-image={card?.thumb}
+      className="group/card flex h-[68px] w-[340px] max-w-full overflow-hidden rounded-md border border-line bg-raised/40 transition-colors hover:border-muted"
+    >
+      <span className="relative h-full w-[120px] shrink-0 overflow-hidden bg-raised">
+        {card?.thumb && <img src={card.thumb} alt="" loading="lazy" draggable={false} className="h-full w-full object-cover transition duration-300 group-hover/card:scale-105" />}
+        <span className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover/card:opacity-100">
+          <span className="rounded-full bg-black/60 p-1.5 text-white">
+            <Play size={12} className="fill-current" />
+          </span>
+        </span>
+        {dur && <span className="absolute bottom-1 right-1 rounded bg-black/70 px-1 text-[10px] tabular-nums text-white">{dur}</span>}
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 px-2.5">
+        {card === undefined ? (
+          <>
+            <span className="h-3 w-4/5 animate-pulse rounded bg-line" />
+            <span className="h-2.5 w-1/2 animate-pulse rounded bg-line/70" />
+          </>
+        ) : (
+          <>
+            <span className="line-clamp-2 text-[12px] font-medium leading-snug text-ink">{card.title}</span>
+            <span className="flex items-center gap-1 truncate text-[11px] text-faint">
+              {card.kind === 'clip' ? <Clapperboard size={11} className="shrink-0" /> : <Play size={10} className="shrink-0 fill-current" />}
+              {card.kind === 'clip'
+                ? [card.channel, card.views !== undefined ? t('clipViews', { n: card.views.toLocaleString() }) : undefined].filter(Boolean).join(' · ')
+                : ['YouTube', card.author].filter(Boolean).join(' · ')}
+            </span>
+          </>
+        )}
+      </span>
+    </a>
+  )
+}
 
 function InlineMedia({ href }: { href: string }) {
   const [src, setSrc] = useState<string | null | undefined>(() => imageUrl(href) ?? undefined)
@@ -148,6 +205,26 @@ function InlineMedia({ href }: { href: string }) {
   )
 }
 
+/** Raid: eigenes Banner mit Avatar des Raiders und der Zahl der Mitgebrachten */
+function RaidBanner({ msg }: { msg: ChatMessage }) {
+  const t = useT()
+  const count = msg.raidViewers
+  return (
+    <div className={cn('raid-sweep relative my-1.5 overflow-hidden border-y border-[hsl(var(--ch)/0.35)] bg-[hsl(var(--ch)/0.07)] px-4 py-2', msg.historical && 'opacity-60')}>
+      <div className="relative flex items-center gap-2.5">
+        <UserAvatar login={msg.login!} name={msg.displayName} color={msg.color} size={26} />
+        <div className="min-w-0 flex-1 text-[12.5px] leading-snug">
+          <button onClick={(e) => openUserCard(msg.login!, msg.channel, e)} className="font-semibold text-ink hover:underline">
+            {msg.displayName}
+          </button>{' '}
+          <span className="text-muted">{count ? t('raidLine', { n: count.toLocaleString() }) : t('raidLineNoCount')}</span>
+        </div>
+        <span className="shrink-0 text-[11px] tabular-nums text-faint">{timeShort(msg.ts)}</span>
+      </div>
+    </div>
+  )
+}
+
 function SystemLine({ msg }: { msg: ChatMessage }) {
   const t = useT()
   if (msg.noticeType === 'history') {
@@ -161,6 +238,7 @@ function SystemLine({ msg }: { msg: ChatMessage }) {
   }
   return (
     <div className={cn('flex items-baseline gap-2 px-4 py-[3px] text-[12.5px] text-faint', msg.historical && 'opacity-60', msg.noticeType === 'error' && 'text-live')}>
+      {msg.emoteUrl && <img src={msg.emoteUrl} alt="" className="h-5 w-auto translate-y-[5px] self-start" draggable={false} />}
       <span className="selectable">{msg.systemText}</span>
       <span className="ml-auto text-[11px] tabular-nums">{timeShort(msg.ts)}</span>
     </div>
@@ -221,6 +299,9 @@ export const MessageRow = memo(function MessageRow({ msg, alt, dark, emoteVersio
     toggleList: st.toggleList
   })))
   const watched = useSettings((st) => !!msg.login && st.watchUsers.includes(msg.login))
+  const showStv = useSettings((st) => st.stvCosmetics)
+  const stvAll = useStvCosmetics(showStv ? msg.userId : undefined)
+  const stv = showStv ? stvAll : {}
   const t = useT()
   const set = useUi((u) => u.set)
 
@@ -284,7 +365,8 @@ export const MessageRow = memo(function MessageRow({ msg, alt, dark, emoteVersio
             <ShieldAlert size={14} />
           </button>
         )}
-        <button className="font-semibold hover:underline" style={{ color: nameColor }} onClick={onName}>
+        {stv.badge && <img className="badge" src={stv.badge.url} alt="" title={stv.badge.title} draggable={false} />}
+        <button className="font-semibold hover:underline" style={stv.paint ? { color: nameColor, ...paintStyle(stv.paint) } : { color: nameColor }} onClick={onName}>
           {msg.displayName}
           {msg.displayName && msg.displayName.toLowerCase() !== login && <span className="font-normal opacity-70"> ({login})</span>}
         </button>
@@ -314,6 +396,9 @@ export const MessageRow = memo(function MessageRow({ msg, alt, dark, emoteVersio
     </div>
   )
 
+  if (msg.kind === 'usernotice' && msg.noticeType === 'raid' && msg.login) {
+    return <RaidBanner msg={msg} />
+  }
   if (msg.kind === 'usernotice') {
     return (
       <div className={cn('my-1 border-y border-line/70 bg-ink/[0.03] py-1.5', msg.historical && 'opacity-50')}>

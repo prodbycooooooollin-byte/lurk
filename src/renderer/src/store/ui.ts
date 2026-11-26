@@ -18,7 +18,7 @@ interface UiState {
   panelTab: PanelTab
   railCollapsed: boolean
   pinned: boolean
-  view: 'chat' | 'mentions'
+  view: 'chat' | 'mentions' | 'home'
   userCard: UserCardState | null
   settingsOpen: boolean
   /** Badge-Dex offen, optional mit vorausgewähltem Badge ("set/version") */

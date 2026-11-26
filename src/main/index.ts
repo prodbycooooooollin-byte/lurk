@@ -97,7 +97,9 @@ const ALLOWED_HOSTS = [
   // nur für Bild-Vorschauen von Alben/Galerien (og:image aus dem HTML)
   'imgur.com', 'tenor.com',
   // vollständige Badge-Listen beliebiger Accounts (Twitch selbst zeigt nur das ausgewählte)
-  'www.badgehq.xyz'
+  'www.badgehq.xyz',
+  // Titel und Vorschaubild für YouTube-Links (oEmbed)
+  'www.youtube.com'
 ]
 
 interface NetRequest { url: string; method?: string; headers?: Record<string, string>; body?: string }

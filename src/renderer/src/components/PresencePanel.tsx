@@ -154,7 +154,7 @@ const PresenceRow = memo(function PresenceRow({ p, channel, watched, dark, now, 
   return (
     <button
       onClick={(e) => openUserCard(p.login, channel, e)}
-      className="absolute left-0 top-0 flex w-full items-center gap-2.5 px-4 text-left hover:bg-hover"
+      className={cn('absolute left-0 top-0 flex w-full items-center gap-2.5 px-4 text-left hover:bg-hover', p.present && p.joinedAt && Date.now() - p.joinedAt < 4000 && 'join-flash')}
       style={{ height, transform: `translateY(${top}px)` }}
     >
       <span className="relative">

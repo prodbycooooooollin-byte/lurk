@@ -35,9 +35,13 @@ export interface ChatMessage {
   /** Systemtext (Sub, Raid, Notice …) */
   systemText?: string
   noticeType?: string
+  /** Bild neben einer Systemzeile (z. B. 7TV-Emote hinzugefügt) */
+  emoteUrl?: string
   joins?: { login: string; part?: boolean }[]
   bits?: number
   self?: boolean
+  /** Raid: so viele Zuschauer kamen mit */
+  raidViewers?: number
   /** vom Mod-Radar markiert: warum */
   radar?: RadarReason[]
 }

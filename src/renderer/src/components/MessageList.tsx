@@ -11,6 +11,8 @@ interface Props {
   messages: ChatMessage[]
   canMod: boolean
   emptyText?: string
+  /** Zu dieser Nachricht springen (n ändert sich bei jedem Sprung) */
+  jumpTo?: { id: string; n: number } | null
   /** "Neue Nachrichten"-Linie nach dieser Nachricht */
   markerId?: string | null
   onMarkerClear?: () => void
@@ -18,7 +20,7 @@ interface Props {
 
 const reduceMotion = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
-export function MessageList({ messages, canMod, emptyText, markerId, onMarkerClear }: Props) {
+export function MessageList({ messages, canMod, emptyText, markerId, onMarkerClear, jumpTo }: Props) {
   const parentRef = useRef<HTMLDivElement>(null)
   const t = useT()
   const emoteVersion = useChat((s) => s.emoteVersion)
@@ -26,6 +28,7 @@ export function MessageList({ messages, canMod, emptyText, markerId, onMarkerCle
   const pauseOnHover = useSettings((s) => s.pauseOnHover)
   const density = useSettings((s) => s.density)
   const fontSize = useSettings((s) => s.fontSize)
+  const emoteScale = useSettings((s) => s.emoteScale)
   const alternate = useSettings((s) => s.alternateRows)
   const [atBottom, setAtBottom] = useState(true)
   const [hovered, setHovered] = useState(false)
@@ -51,7 +54,7 @@ export function MessageList({ messages, canMod, emptyText, markerId, onMarkerCle
   const virt = useVirtualizer({
     count: list.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => (density === 'compact' ? 22 : 28) * (fontSize / 14),
+    estimateSize: () => (density === 'compact' ? 22 : 28) * (fontSize / 14) * (emoteScale > 1 ? 1.25 : 1),
     overscan: 14,
     getItemKey: (i) => list[i]?.id ?? i
   })
@@ -84,6 +87,21 @@ export function MessageList({ messages, canMod, emptyText, markerId, onMarkerCle
     }
   }, [list.length, list, virt, paused])
 
+  // Sprung aus der Zeitleiste: Nachricht in die Mitte holen und kurz hervorheben
+  const [flashId, setFlashId] = useState<string | null>(null)
+  useEffect(() => {
+    if (!jumpTo) return
+    const i = list.findIndex((m) => m.id === jumpTo.id)
+    if (i < 0) return
+    stick.current = false
+    setAtBottom(false)
+    virt.scrollToIndex(i, { align: 'center' })
+    setFlashId(jumpTo.id)
+    const tm = window.setTimeout(() => setFlashId(null), 1800)
+    return () => window.clearTimeout(tm)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jumpTo])
+
   const onScroll = (): void => {
     const el = parentRef.current
     if (!el) return
@@ -107,7 +125,7 @@ export function MessageList({ messages, canMod, emptyText, markerId, onMarkerCle
         {list.length === 0 && emptyText && <div className="flex h-full items-center justify-center px-8 text-center text-[13px] text-faint">{emptyText}</div>}
         <div ref={innerRef} style={{ height: virt.getTotalSize(), position: 'relative', willChange: 'transform' }}>
           {virt.getVirtualItems().map((item) => (
-            <div key={item.key} data-index={item.index} ref={virt.measureElement} style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${item.start}px)`, contain: 'layout paint style' }}>
+            <div key={item.key} data-index={item.index} ref={virt.measureElement} className={flashId === list[item.index]?.id ? 'jump-flash' : undefined} style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${item.start}px)`, contain: 'layout paint style' }}>
               {markerId && item.index > 0 && list[item.index - 1]?.id === markerId && (
                 <button onClick={onMarkerClear} className="group flex w-full items-center gap-3 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-live">
                   <span className="h-px flex-1 bg-live/50" />
@@ -123,7 +141,7 @@ export function MessageList({ messages, canMod, emptyText, markerId, onMarkerCle
       {((paused && newWhilePaused > 0) || !atBottom) && (
         <button
           onClick={jump}
-          className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full bg-ink px-3 py-1.5 text-[12px] font-medium text-ground shadow-lg transition hover:bg-ink/85"
+          className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full bg-[hsl(var(--ch))] px-3 py-1.5 text-[12px] font-medium text-ground shadow-lg transition hover:brightness-110"
         >
           {paused ? <Pause size={12} /> : <ArrowDown size={12} />}
           {paused ? t('paused') : t('jumpDown')}

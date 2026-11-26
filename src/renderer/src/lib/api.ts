@@ -79,7 +79,11 @@ export const SCOPES = [
   'moderator:manage:banned_users',
   'moderator:manage:chat_messages',
   'moderator:manage:announcements',
-  'user:read:follows'
+  'user:read:follows',
+  // Hype-Train, Umfragen, Vorhersagen im eigenen Kanal (EventSub)
+  'channel:read:hype_train',
+  'channel:read:polls',
+  'channel:read:predictions'
 ].join(' ')
 
 export interface DeviceCode {

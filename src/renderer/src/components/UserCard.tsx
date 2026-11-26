@@ -539,14 +539,26 @@ function SessionMessages({ card, others }: { card: UserCardState; others: string
 /** "Gerade auch in": Kanäle als Chips mit Avatar. Klick zeigt die Nachrichten von dort, Strg+Klick öffnet den Kanal daneben */
 function AlsoInStrip({ login, channels, onMessages }: { login: string; channels: string[]; onMessages: () => void }) {
   const t = useT()
-  const infos = useChat(
-    useShallow((st) =>
-      channels.map((c) => {
+  // Als Text abfragen: ein Array neuer Objekte wäre bei jedem Aufruf "anders" – React liefe dann
+  // in eine Endlosschleife und die ganze App fiele aus (so war es, sobald jemand auch woanders war).
+  const key = useChat((st) =>
+    channels
+      .map((c) => {
         const ch = st.channels[c]
         const q = ch?.presence[login]
-        return { c, avatar: ch?.info.avatar, name: ch?.info.displayName ?? c, live: !!ch?.info.live, msgs: q?.msgCount ?? 0, here: !!q?.present }
+        return [c, ch?.info.avatar ?? '', ch?.info.displayName ?? c, ch?.info.live ? 1 : 0, q?.msgCount ?? 0, q?.present ? 1 : 0].join('\u0001')
       })
-    )
+      .join('\u0002')
+  )
+  const infos = useMemo(
+    () =>
+      key
+        ? key.split('\u0002').map((row) => {
+            const [c, avatar, name, live, msgs, here] = row.split('\u0001')
+            return { c, avatar: avatar || undefined, name, live: live === '1', msgs: Number(msgs), here: here === '1' }
+          })
+        : [],
+    [key]
   )
   return (
     <div className="mt-2.5 rounded-[10px] border border-line bg-raised/30 px-2.5 py-2">

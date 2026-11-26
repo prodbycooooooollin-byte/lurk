@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import * as CM from '@radix-ui/react-context-menu'
-import { Plus, AtSign, Settings, Columns2, ExternalLink, Trash2, ChevronUp, ChevronDown, Pin, PinOff } from 'lucide-react'
+import { Plus, AtSign, House, Settings, Columns2, ExternalLink, Trash2, ChevronUp, ChevronDown, Pin, PinOff } from 'lucide-react'
 import { useUi } from '@/store/ui'
 import { useChat } from '@/store/chat'
 import { partChannel } from '@/lib/client'
@@ -8,6 +8,9 @@ import { useT } from '@/lib/i18n'
 import { Avatar, Tip } from './ui'
 import { cn, formatNumber } from '@/lib/util'
 import { useHoverIntent } from '@/lib/useHoverIntent'
+import { useSettings } from '@/store/settings'
+import { useLive } from '@/lib/live'
+import { accentVars, useAccent } from '@/lib/accent'
 
 export function ChannelRail() {
   const ui = useUi()
@@ -22,6 +25,7 @@ export function ChannelRail() {
   const expanded = pinned || hover.hover
   const floating = !pinned && hover.hover
   const unseenMentions = ui.view !== 'mentions' ? mentionsCount - seenMentions : 0
+  const liveCount = useLive((l) => l.streams?.length ?? 0)
 
   return (
     <div className={cn('relative shrink-0 transition-[width] duration-200 ease-out', pinned ? 'w-[208px]' : 'w-[52px]')}>
@@ -34,6 +38,14 @@ export function ChannelRail() {
         floating && 'shadow-[16px_0_48px_-16px_rgba(0,0,0,0.6)]'
       )}
     >
+      <Row
+        expanded={expanded}
+        active={ui.view === 'home'}
+        onClick={() => ui.set({ view: 'home' })}
+        icon={<House size={15} strokeWidth={1.75} />}
+        label={t('home')}
+        meta={liveCount ? t('homeLiveShort', { n: liveCount }) : undefined}
+      />
       <Row
         expanded={expanded}
         active={ui.view === 'mentions'}
@@ -53,7 +65,7 @@ export function ChannelRail() {
           return (
             <CM.Root key={c}>
               <CM.Trigger asChild>
-                <div>
+                <AccentScope avatar={ch?.info.avatar}>
                   <Row
                     expanded={expanded}
                     active={active === c}
@@ -69,7 +81,7 @@ export function ChannelRail() {
                     count={ch?.mentions || 0}
                     unread={!!ch?.unread && !inSplit}
                   />
-                </div>
+                </AccentScope>
               </CM.Trigger>
               <CM.Portal>
                 <CM.Content className="menu">
@@ -120,6 +132,13 @@ export function ChannelRail() {
   )
 }
 
+/** Setzt die Kanalfarbe als CSS-Variable für die Zeile darin */
+function AccentScope({ avatar, children }: { avatar?: string; children: React.ReactNode }) {
+  const dark = useSettings((s) => s.theme) === 'dark'
+  const accent = useAccent(avatar)
+  return <div style={accentVars(accent, dark)}>{children}</div>
+}
+
 interface RowProps {
   expanded: boolean
   active?: boolean
@@ -141,6 +160,7 @@ function Row({ expanded, active, quiet, icon, label, meta, count, unread, onClic
         active ? 'bg-raised text-ink' : quiet ? 'text-faint hover:text-ink' : 'text-muted hover:bg-hover hover:text-ink'
       )}
     >
+      {active && <span className="absolute -left-2 top-1.5 h-5 w-[3px] rounded-r-full bg-[hsl(var(--ch))]" />}
       <span className="flex w-[22px] shrink-0 justify-center">{icon}</span>
       {expanded && <span className={cn('min-w-0 flex-1 truncate text-[13px]', (active || unread) && 'font-medium text-ink')}>{label}</span>}
       {expanded && meta && !count && <span className="text-[11px] tabular-nums text-faint">{meta}</span>}

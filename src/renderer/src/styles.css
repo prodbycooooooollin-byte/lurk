@@ -24,6 +24,8 @@
   --warn: 214 170 80;
   --live: 235 72 72;
   --chat-size: 14px;
+  /* Akzent des Kanals (HSL), Standard = neutral */
+  --ch: 240 4% 93%;
   color-scheme: dark;
 }
 
@@ -41,6 +43,7 @@
   --part: 120 120 128;
   --warn: 170 120 20;
   --live: 220 50 50;
+  --ch: 240 8% 6%;
   color-scheme: light;
 }
 
@@ -88,7 +91,7 @@ body {
   display: inline-block;
   vertical-align: middle;
   margin: -6px 1px -4px;
-  height: calc(var(--chat-size) * 2);
+  height: calc(var(--chat-size) * 2 * var(--emote-scale, 1));
   width: auto;
 }
 .chat-line .emote-stack { position: relative; display: inline-block; vertical-align: middle; }
@@ -150,3 +153,35 @@ body {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+
+/* Kurzes Aufleuchten neuer Leute in der Anwesenheitsliste */
+@keyframes join-flash {
+  0% { background: rgb(var(--join) / 0.16); }
+  100% { background: transparent; }
+}
+.join-flash { animation: join-flash 2.4s ease-out; }
+
+/* Raid-Banner: ein Lichtstreif läuft einmal durch */
+@keyframes raid-sweep {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+.raid-sweep::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 20%, hsl(var(--ch) / 0.22) 50%, transparent 80%);
+  animation: raid-sweep 1.6s cubic-bezier(.4, 0, .2, 1) 1;
+  transform: translateX(100%);
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .join-flash, .raid-sweep::after { animation: none; }
+}
+
+/* Sprung aus der Zeitleiste: Zeile kurz hervorheben */
+@keyframes jump-flash {
+  0%, 30% { background: hsl(var(--ch) / 0.16); }
+  100% { background: transparent; }
+}
+.jump-flash { animation: jump-flash 1.8s ease-out; }

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { extractMedia, imageUrl, isVideo, pageToResolve } from '../src/renderer/src/lib/linkPreview'
+import { clipSlug, extractMedia, imageUrl, isVideo, pageToResolve, youtubeId } from '../src/renderer/src/lib/linkPreview'
 
 test('imgur page links become direct images', () => {
   assert.equal(imageUrl('https://imgur.com/aBc123X'), 'https://i.imgur.com/aBc123X.jpg')
@@ -42,4 +42,14 @@ test('og:video wins over og:image, imgur ?fb crop is removed', () => {
   assert.equal(extractMedia('<meta property="og:image" content="https://i.imgur.com/x.jpeg?fb">'), 'https://i.imgur.com/x.jpeg')
   assert.equal(extractMedia('<meta property="og:image" content="https://i.imgur.com/x.jpeg"><meta property="og:video" content="https://i.imgur.com/x.mp4">'), 'https://i.imgur.com/x.mp4')
   assert.equal(extractMedia('<meta property="og:image" content="javascript:x">'), null)
+})
+
+test('youtube ids and twitch clip slugs', () => {
+  assert.equal(youtubeId('https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=10'), 'dQw4w9WgXcQ')
+  assert.equal(youtubeId('https://youtu.be/dQw4w9WgXcQ'), 'dQw4w9WgXcQ')
+  assert.equal(youtubeId('https://youtube.com/shorts/dQw4w9WgXcQ'), 'dQw4w9WgXcQ')
+  assert.equal(youtubeId('https://www.youtube.com/@RickAstleyYT'), null)
+  assert.equal(clipSlug('https://clips.twitch.tv/AwkwardHelplessSalamanderSwiftRage'), 'AwkwardHelplessSalamanderSwiftRage')
+  assert.equal(clipSlug('https://www.twitch.tv/xqc/clip/AwkwardHelplessSalamanderSwiftRage-abc123'), 'AwkwardHelplessSalamanderSwiftRage-abc123')
+  assert.equal(clipSlug('https://www.twitch.tv/xqc'), null)
 })

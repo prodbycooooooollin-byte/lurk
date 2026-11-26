@@ -7,6 +7,7 @@ import { useSettings, type Settings } from '@/store/settings'
 import { useAuth, BUILT_IN_CLIENT_ID } from '@/store/auth'
 import { startDeviceFlow, pollDeviceToken, validateToken, type DeviceCode } from '@/lib/api'
 import { applyAuth } from '@/lib/client'
+import { EVENT_SCOPES } from '@/lib/eventsub'
 import { useT, t as tt, LANGS, type TKey } from '@/lib/i18n'
 import { Button, IconButton, Input, Switch } from './ui'
 import { cn } from '@/lib/util'
@@ -131,6 +132,17 @@ function LookTab() {
       <Row label={t('fontSize')} hint={`${s.fontSize} px`}>
         <SliderRow value={s.fontSize} min={11} max={20} step={1} onChange={(v) => s.set({ fontSize: v })} label={t('fontSize')} />
       </Row>
+      <Row label={t('emoteSize')}>
+        <Segmented
+          value={String(s.emoteScale) as '1' | '1.5' | '2'}
+          options={[
+            ['1', t('emoteNormal')],
+            ['1.5', t('emoteLarge')],
+            ['2', t('emoteHuge')]
+          ]}
+          onChange={(v) => s.set({ emoteScale: Number(v) })}
+        />
+      </Row>
       <Toggle k="alternateRows" label="alternateRows" />
       <Toggle k="showBadges" label="showBadges" hint="showBadgesHint" />
       <Toggle k="timestamps" label="timestamps" />
@@ -145,6 +157,9 @@ function ChatTab() {
   return (
     <>
       <Toggle k="thirdPartyEmotes" label="thirdParty" hint="thirdPartyHint" />
+      <Toggle k="stvCosmetics" label="stvCosmetics" hint="stvCosmeticsHint" />
+      <Toggle k="stvEmoteNotices" label="stvEmoteNotices" hint="stvEmoteNoticesHint" />
+      <Toggle k="timeline" label="timeline" hint="timelineHint" />
       <Toggle k="showHistory" label="history" hint="historyHint" />
       <Toggle k="pauseOnHover" label="pauseHover" hint="pauseHoverHint" />
       <Toggle k="inlineJoins" label="inlineJoins" hint="inlineJoinsHint" />
@@ -234,6 +249,7 @@ function NotifyTab() {
         <ListEditor items={s.watchUsers} onAdd={(v) => s.toggleList('watchUsers', v)} onRemove={(v) => s.toggleList('watchUsers', v)} placeholder={t('twitchName')} empty={t('nobodyListed')} />
       </Section>
       <Toggle k="desktopNotify" label="desktopNotify" hint="desktopNotifyHint" />
+      <Toggle k="liveNotify" label="liveNotify" hint="liveNotifyHint" />
       <Section title={t('soundsTitle')}>
         <SoundPicker label={t('soundMention')} enabled={s.mentionSound} onEnabled={(v) => s.set({ mentionSound: v })} value={s.mentionSoundId} onChange={(v) => s.set({ mentionSoundId: v })} />
         <SoundPicker label={t('soundJoin')} enabled={s.joinSound} onEnabled={(v) => s.set({ joinSound: v })} value={s.joinSoundId} onChange={(v) => s.set({ joinSoundId: v })} />
@@ -434,6 +450,9 @@ function AccountTab() {
             {t('signOut')}
           </Button>
         </div>
+        {!EVENT_SCOPES.every((s) => a.scopes.includes(s)) && (
+          <div className="mt-5 rounded-lg border border-line px-3 py-2.5 text-[12px] leading-relaxed text-muted">{t('rescopeHint')}</div>
+        )}
         <div className="mt-6 text-[11.5px] leading-relaxed text-faint">{t('scopes', { s: a.scopes.join(', ') || '–' })}</div>
       </div>
     )

@@ -21,6 +21,8 @@ export interface Settings {
   accent: 'periwinkle' | 'mint' | 'rose' | 'amber' | 'sky'
   density: 'compact' | 'cozy'
   fontSize: number
+  /** Emote-Größe im Chat (1 = normal) */
+  emoteScale: number
   timestamps: boolean
   timestampSeconds: boolean
   showBadges: boolean
@@ -46,6 +48,14 @@ export interface Settings {
   desktopNotify: boolean
   /** Mod-Radar: nur in Kanälen, in denen du Mod bist, überall (nur ansehen) oder aus */
   modRadar: 'mod' | 'all' | 'off'
+  /** kleiner Hinweis, wenn ein gefolgter Kanal live geht (standardmäßig aus) */
+  liveNotify: boolean
+  /** dezente Zeitleiste mit Ereignissen über dem Chat */
+  timeline: boolean
+  /** 7TV-Paints und -Badges an Namen */
+  stvCosmetics: boolean
+  /** Hinweis im Chat, wenn ein 7TV-Emote dazukommt oder entfernt wird */
+  stvEmoteNotices: boolean
   pauseOnHover: boolean
   maxMessages: number
   showHistory: boolean
@@ -67,6 +77,7 @@ export const useSettings = create<Settings>()(
       accent: 'periwinkle',
       density: 'cozy',
       fontSize: 14,
+      emoteScale: 1,
       timestamps: true,
       timestampSeconds: false,
       showBadges: true,
@@ -87,6 +98,10 @@ export const useSettings = create<Settings>()(
       invisible: false,
       desktopNotify: true,
       modRadar: 'mod',
+      liveNotify: false,
+      timeline: true,
+      stvCosmetics: true,
+      stvEmoteNotices: true,
       pauseOnHover: true,
       maxMessages: 1500,
       showHistory: true,

@@ -1,5 +1,6 @@
 import { recordBadges, startBadgeDex } from './badgedex'
 import { assessMessage, noteBan, type RadarReason } from './modradar'
+import { startSevenTv, watchSevenTvRoom, type EmoteChange } from './seventv'
 // Lurk engine: connects IRC, APIs and the store. Incoming events are collected
 // and written to the store in batches every 100 ms, so the UI stays smooth even in very fast chats.
 import { toast } from 'sonner'
@@ -76,6 +77,20 @@ function flush(): void {
   useChat.setState({
     channels,
     ...(ctx.mentions.length ? { mentions: [...state.mentions, ...ctx.mentions].slice(-500) } : {})
+  })
+}
+
+// ---------- 7TV ----------
+/** Emote im Kanal-Set hinzugefügt/entfernt/umbenannt: als ruhige Systemzeile in den Chat */
+function announceEmoteChange(e: EmoteChange): void {
+  if (!useSettings.getState().stvEmoteNotices) return
+  const channels = useChat.getState().channels
+  const c = Object.keys(channels).find((k) => channels[k].room.roomId === e.channelRoomId)
+  if (!c) return
+  const key = e.action === 'added' ? 'stvAdded' : e.action === 'removed' ? 'stvRemoved' : 'stvRenamed'
+  const text = t(key, { e: e.name, o: e.oldName ?? '', a: e.actor ?? '7TV' })
+  queue((get) => {
+    get(c).messages.push({ id: `v${++localId}`, kind: 'system', channel: c, ts: Date.now(), badges: [], text: '', twitchEmotes: [], systemText: text, noticeType: '7tv', emoteUrl: e.action === 'removed' ? undefined : e.url })
   })
 }
 
@@ -315,6 +330,7 @@ function handle(m: IrcMessage, historical = false): void {
         text: m.params.length > 1 ? m.trailing : ''
       }
       if (msg.noticeType === 'announcement') msg.highlightColor = (t['msg-param-color'] || 'PRIMARY').toLowerCase()
+      if (msg.noticeType === 'raid') msg.raidViewers = Number(t['msg-param-viewerCount']) || undefined
       recordBadges(msg.login, msg.badges, c, msg.ts, historical)
       queue((get) => {
         const ch = get(c)
@@ -372,7 +388,10 @@ function handle(m: IrcMessage, historical = false): void {
         if ('r9k' in t) r.r9k = t['r9k'] === '1'
         ch.room = r
       })
-      if (t['room-id']) void loadChannelEmotes(t['room-id'])
+      if (t['room-id']) {
+        const room = t['room-id']
+        void loadChannelEmotes(room).then(() => watchSevenTvRoom(room))
+      }
       break
     }
     case 'USERSTATE': {
@@ -692,6 +711,7 @@ export async function startClient(): Promise<void> {
   )
   startHistory()
   startBadgeDex()
+  startSevenTv(announceEmoteChange)
   onEmotesChanged(() => useChat.setState((s) => ({ emoteVersion: s.emoteVersion + 1 })))
   void loadGlobalEmotes()
   void loadGlobalBadges()

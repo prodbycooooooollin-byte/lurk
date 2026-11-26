@@ -2,9 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import * as DM from '@radix-ui/react-dropdown-menu'
 import { Search, MoreHorizontal, X, ExternalLink, Download, RefreshCw, Columns2, Eraser, MonitorPlay } from 'lucide-react'
 import { MessageList } from './MessageList'
+import { Timeline } from './Timeline'
+import { ChannelEvents } from './ChannelEvents'
 import { Composer } from './Composer'
 import { Avatar, IconButton, Tip } from './ui'
 import { useChat } from '@/store/chat'
+import { useSettings } from '@/store/settings'
+import { accentVars, useAccent } from '@/lib/accent'
 import { useUi } from '@/store/ui'
 import { markRead } from '@/lib/client'
 import { reloadChannelEmotes } from '@/lib/emotes'
@@ -42,7 +46,11 @@ export function ChatSplit({ channel, index, focused, multi }: { channel: string;
   const ui = useUi()
   const t = useT()
   const [query, setQuery] = useState('')
+  const [jumpTo, setJumpTo] = useState<{ id: string; n: number } | null>(null)
+  const showTimeline = useSettings((s) => s.timeline)
   const searchOpen = !!ui.searchOpen[channel]
+  const dark = useSettings((s) => s.theme) === 'dark'
+  const accent = useAccent(ch?.info.avatar)
 
   useEffect(() => {
     if (focused) markRead(channel)
@@ -94,11 +102,16 @@ export function ChatSplit({ channel, index, focused, multi }: { channel: string;
     <section
       onMouseDown={() => index !== ui.focused && ui.setFocused(index)}
       className={cn('relative flex min-w-[280px] flex-1 flex-col overflow-hidden', multi && index > 0 && 'border-l border-line')}
+      style={accentVars(accent, dark)}
     >
-      {multi && focused && <span className="absolute inset-x-0 top-0 z-10 h-px bg-ink/60" />}
-      <header className="flex h-[52px] shrink-0 items-center gap-3 border-b border-line px-4">
-        <Avatar src={info.avatar} name={channel} size={28} />
-        <div className="min-w-0 flex-1">
+      {multi && focused && <span className="absolute inset-x-0 top-0 z-10 h-[2px] bg-[hsl(var(--ch)/0.85)] transition-colors duration-500" />}
+      <header className="relative flex h-[52px] shrink-0 items-center gap-3 border-b border-line px-4">
+        {/* leichter Schein in der Kanalfarbe */}
+        {accent && <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(90%_220%_at_0%_0%,hsl(var(--ch)/0.13),transparent_65%)] transition-opacity duration-700" />}
+        <span className={cn('relative rounded-full', accent && 'ring-[1.5px] ring-[hsl(var(--ch)/0.7)] ring-offset-[1.5px] ring-offset-ground')}>
+          <Avatar src={info.avatar} name={channel} size={28} className="flex" />
+        </span>
+        <div className="relative min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="truncate text-[13.5px] font-semibold">{info.displayName ?? channel}</span>
             {info.live ? (
@@ -116,7 +129,7 @@ export function ChatSplit({ channel, index, focused, multi }: { channel: string;
             {info.live ? [info.game, info.title].filter(Boolean).join(' · ') : info.title ?? t('notLive')}
           </div>
         </div>
-        <div className="hidden items-center gap-5 xl:flex">
+        <div className="relative hidden items-center gap-5 xl:flex">
           {info.live && (
             <Tip label={t('tipViewers')}>
               <div>
@@ -136,7 +149,7 @@ export function ChatSplit({ channel, index, focused, multi }: { channel: string;
             </div>
           </Tip>
         </div>
-        <div className="flex items-center">
+        <div className="relative flex items-center">
           <Tip label={t('watchStream')}>
             <IconButton onClick={() => window.bridge.openPlayer(channel)} className={cn(info.live && 'text-muted')}>
               <MonitorPlay size={15} strokeWidth={1.75} />
@@ -212,7 +225,9 @@ export function ChatSplit({ channel, index, focused, multi }: { channel: string;
           {query && <span className="text-[12px] text-faint">{t('results', { n: messages.length })}</span>}
         </div>
       )}
-      <MessageList messages={messages} canMod={canMod} markerId={searchOpen && query ? null : marker} onMarkerClear={() => setMarker(null)} emptyText={searchOpen && query ? t('noResults') : ch.joined ? t('quiet') : t('connectingTo', { c: channel })} />
+      <ChannelEvents channel={channel} />
+      {showTimeline && !(searchOpen && query) && <Timeline messages={ch.messages} onJump={(id) => setJumpTo((j) => ({ id, n: (j?.n ?? 0) + 1 }))} />}
+      <MessageList jumpTo={jumpTo} messages={messages} canMod={canMod} markerId={searchOpen && query ? null : marker} onMarkerClear={() => setMarker(null)} emptyText={searchOpen && query ? t('noResults') : ch.joined ? t('quiet') : t('connectingTo', { c: channel })} />
       <Composer channel={channel} />
     </section>
   )
