@@ -27,6 +27,8 @@ export interface IvrUser {
   createdAt?: string
   chatColor?: string | null
   followers?: number
+  /** Leute im Chat laut Twitch (auch Lurker) */
+  chatterCount?: number
   bio?: string
   banned?: boolean
   roles?: { isAffiliate?: boolean; isPartner?: boolean; isStaff?: boolean | null }

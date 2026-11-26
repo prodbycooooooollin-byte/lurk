@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Hash, LogIn, RefreshCw } from 'lucide-react'
+import { ArrowRight, Hash, LogIn, RefreshCw } from 'lucide-react'
 import { useLive, refreshLive, openLive, type LiveStream } from '@/lib/live'
 import { useAuth } from '@/store/auth'
 import { useUi } from '@/store/ui'
@@ -27,6 +27,8 @@ export function Home() {
   }, [])
 
   const streams = live.streams ?? []
+  // Ganz neu: noch kein Kanal und niemand live -> große, ruhige Begrüßung statt leerem Raster
+  if (!hasChannels && live.streams !== null && !streams.length) return <EmptyHome signedIn={!!login} />
   return (
     <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">
       <div className="mx-auto w-full max-w-[1100px] px-8 pb-12 pt-10">
@@ -48,10 +50,10 @@ export function Home() {
                 setV('')
               }
             }}
-            className="flex h-9 w-[260px] items-center gap-2 rounded-md border border-line px-3 focus-within:border-muted"
+            className="flex h-9 w-[260px] items-center gap-2 rounded-lg border border-line bg-raised/30 px-3 transition-[border-color,box-shadow] focus-within:border-ink/30 focus-within:shadow-[0_0_0_3px_rgb(var(--ink)/0.06)]"
           >
             <Hash size={14} className="text-faint" />
-            <input value={v} onChange={(e) => setV(e.target.value)} placeholder={t('channelName')} className="w-full bg-transparent text-[13px] placeholder:text-faint" />
+            <input value={v} onChange={(e) => setV(e.target.value)} placeholder={t('channelName')} className="w-full bg-transparent text-[13px] placeholder:text-faint focus-visible:outline-none" />
           </form>
           <Tip label={t('reload')}>
             <IconButton onClick={() => void refreshLive()} className={cn(live.loading && 'animate-spin')}>
@@ -85,6 +87,69 @@ export function Home() {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+/** Erste Seite ohne Kanäle: großes Eingabefeld in der Mitte, darunter, was Lurk kann */
+function EmptyHome({ signedIn }: { signedIn: boolean }) {
+  const t = useT()
+  const [v, setV] = useState('')
+  const name = v.trim().replace(/^#/, '').replace(/^https?:\/\/(www\.)?twitch\.tv\//, '').split(/[/?#]/)[0]
+  const valid = /^[a-z0-9_]{2,25}$/i.test(name)
+  return (
+    <div className="flex min-w-0 flex-1 items-center justify-center overflow-y-auto px-8 py-12">
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: [0.2, 0.8, 0.2, 1] }} className="w-full max-w-[520px] text-center">
+        <div className="mx-auto mb-7 flex justify-center text-ink">
+          <LurkLogo size={64} live peek />
+        </div>
+        <h1 className="text-[30px] font-semibold leading-[1.12] tracking-[-0.03em] [text-wrap:balance]">{t('welcomeTitle')}</h1>
+        <p className="mx-auto mt-3 max-w-[420px] text-[14px] leading-relaxed text-muted">{t('welcomeText')}</p>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (valid) addAndJoin(name)
+          }}
+          className="group mx-auto mt-8 flex h-12 items-center gap-2 rounded-xl border border-line bg-raised/40 pl-4 pr-1.5 text-left transition-[border-color,box-shadow,background-color] focus-within:border-ink/30 focus-within:bg-raised/60 focus-within:shadow-[0_0_0_4px_rgb(var(--ink)/0.06)]"
+        >
+          <Hash size={16} className="shrink-0 text-faint transition-colors group-focus-within:text-muted" />
+          <input
+            autoFocus
+            value={v}
+            onChange={(e) => setV(e.target.value)}
+            placeholder={t('channelName')}
+            spellCheck={false}
+            className="h-full w-full bg-transparent text-[15px] text-ink placeholder:text-faint focus-visible:outline-none"
+          />
+          <button
+            disabled={!valid}
+            className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-ink px-3.5 text-[13px] font-medium text-ground transition hover:bg-ink/85 disabled:bg-line disabled:text-faint"
+          >
+            {t('join')}
+            <ArrowRight size={14} />
+          </button>
+        </form>
+        <p className="mt-3 text-[12px] text-faint">{t('emptyHint')}</p>
+        {!signedIn && (
+          <button onClick={() => useUi.getState().set({ settingsOpen: true, settingsTab: 'account' })} className="mt-1 text-[12px] text-muted underline decoration-line underline-offset-4 hover:text-ink hover:decoration-ink">
+            {t('emptySignIn')}
+          </button>
+        )}
+        <dl className="mt-12 grid gap-6 border-t border-line pt-7 text-left sm:grid-cols-3">
+          {(
+            [
+              ['feat1T', 'feat1D'],
+              ['feat2T', 'feat2D'],
+              ['feat3T', 'feat3D']
+            ] as const
+          ).map(([a, b]) => (
+            <div key={a}>
+              <dt className="text-[13px] font-medium text-ink">{t(a)}</dt>
+              <dd className="m-0 mt-1 text-[12.5px] leading-snug text-faint">{t(b)}</dd>
+            </div>
+          ))}
+        </dl>
+      </motion.div>
     </div>
   )
 }

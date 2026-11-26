@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { forwardRef, useState, type HTMLAttributes } from 'react'
 import * as CM from '@radix-ui/react-context-menu'
-import { Plus, AtSign, House, Settings, Columns2, ExternalLink, Trash2, ChevronUp, ChevronDown, Pin, PinOff } from 'lucide-react'
+import { Plus, AtSign, House, Settings, X, Columns2, ExternalLink, Trash2, ChevronUp, ChevronDown, Pin, PinOff } from 'lucide-react'
 import { useUi } from '@/store/ui'
 import { useChat } from '@/store/chat'
 import { partChannel } from '@/lib/client'
@@ -80,6 +80,11 @@ export function ChannelRail() {
                     meta={ch?.info.live ? formatNumber(ch.info.viewers) : undefined}
                     count={ch?.mentions || 0}
                     unread={!!ch?.unread && !inSplit}
+                    onRemove={() => {
+                      ui.removeChannel(c)
+                      partChannel(c)
+                    }}
+                    removeLabel={t('removeChannel')}
                   />
                 </AccentScope>
               </CM.Trigger>
@@ -132,12 +137,15 @@ export function ChannelRail() {
   )
 }
 
-/** Setzt die Kanalfarbe als CSS-Variable für die Zeile darin */
-function AccentScope({ avatar, children }: { avatar?: string; children: React.ReactNode }) {
+/**
+ * Setzt die Kanalfarbe als CSS-Variable für die Zeile darin. forwardRef + Props weiterreichen:
+ * das Rechtsklick-Menü hängt seine Handler an genau dieses Element.
+ */
+const AccentScope = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement> & { avatar?: string }>(function AccentScope({ avatar, style, ...rest }, ref) {
   const dark = useSettings((s) => s.theme) === 'dark'
   const accent = useAccent(avatar)
-  return <div style={accentVars(accent, dark)}>{children}</div>
-}
+  return <div ref={ref} {...rest} style={{ ...style, ...accentVars(accent, dark) }} />
+})
 
 interface RowProps {
   expanded: boolean
@@ -149,27 +157,46 @@ interface RowProps {
   count?: number
   unread?: boolean
   onClick: (e: React.MouseEvent) => void
+  /** zeigt beim Überfahren ein X zum Entfernen */
+  onRemove?: () => void
+  removeLabel?: string
 }
 
-function Row({ expanded, active, quiet, icon, label, meta, count, unread, onClick }: RowProps) {
+function Row({ expanded, active, quiet, icon, label, meta, count, unread, onClick, onRemove, removeLabel }: RowProps) {
   const btn = (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onClick(e as unknown as React.MouseEvent)}
       className={cn(
-        'relative mx-2 flex h-8 shrink-0 items-center gap-2.5 whitespace-nowrap rounded-md px-1.5 text-left transition-colors',
+        'group/row relative mx-2 flex h-8 shrink-0 cursor-default items-center gap-2.5 whitespace-nowrap rounded-md px-1.5 text-left transition-colors',
         active ? 'bg-raised text-ink' : quiet ? 'text-faint hover:text-ink' : 'text-muted hover:bg-hover hover:text-ink'
       )}
     >
       {active && <span className="absolute -left-2 top-1.5 h-5 w-[3px] rounded-r-full bg-[hsl(var(--ch))]" />}
       <span className="flex w-[22px] shrink-0 justify-center">{icon}</span>
       {expanded && <span className={cn('min-w-0 flex-1 truncate text-[13px]', (active || unread) && 'font-medium text-ink')}>{label}</span>}
-      {expanded && meta && !count && <span className="text-[11px] tabular-nums text-faint">{meta}</span>}
+      {expanded && meta && !count && <span className={cn('text-[11px] tabular-nums text-faint', onRemove && 'group-hover/row:hidden')}>{meta}</span>}
+      {expanded && onRemove && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onRemove()
+          }}
+          title={removeLabel}
+          aria-label={removeLabel}
+          className="-mr-0.5 hidden h-5 w-5 shrink-0 items-center justify-center rounded text-faint hover:bg-line hover:text-ink group-hover/row:flex"
+        >
+          <X size={13} strokeWidth={2} />
+        </button>
+      )}
       {!!count && (
         <span className={cn('flex h-4 min-w-4 items-center justify-center rounded-full bg-ink px-1 text-[10px] font-semibold text-ground', !expanded && 'absolute right-0.5 top-0')}>
           {count > 99 ? '99+' : count}
         </span>
       )}
-    </button>
+    </div>
   )
   return expanded ? btn : <Tip label={label} side="right">{btn}</Tip>
 }

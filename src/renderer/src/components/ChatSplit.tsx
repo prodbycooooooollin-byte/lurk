@@ -81,7 +81,8 @@ export function ChatSplit({ channel, index, focused, multi }: { channel: string;
   }, [ch, searchOpen, query])
 
   if (!ch) return null
-  const present = ch.presentCount
+  // Twitchs eigene Zahl, solange Lurk selbst noch nicht alle kennt (als Gast meldet Twitch keine Joins)
+  const present = Math.max(ch.presentCount, ch.info.chatters ?? 0)
   const perMin = ch.stats.buckets.slice(-5).reduce((a, b) => a + b, 0) / 5
   const canMod = ch.me.mod || ch.me.broadcaster
   const info = ch.info

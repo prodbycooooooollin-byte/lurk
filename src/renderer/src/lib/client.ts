@@ -593,7 +593,8 @@ export async function refreshInfo(): Promise<void> {
         game: u.stream?.game?.displayName,
         viewers: u.stream?.viewersCount,
         startedAt: u.stream?.createdAt,
-        followers: u.followers
+        followers: u.followers,
+        chatters: u.chatterCount ?? undefined
       }
       if (!ch.room.roomId && u.id) ch.room = { ...ch.room, roomId: u.id }
     }

@@ -66,6 +66,7 @@ function PresenceList({ channel }: { channel: string }) {
   const parentRef = useRef<HTMLDivElement>(null)
   useTick(30_000)
   const { now, all, present } = usePresenceView(channel, 1000)
+  const chatters = useChat((s) => s.channels[channel]?.info.chatters ?? 0)
 
   const { list, counts } = useMemo(() => {
     const regular = (p: PresenceUser): boolean => isRegular(getHistory(channel, p.login))
@@ -105,8 +106,8 @@ function PresenceList({ channel }: { channel: string }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="grid grid-cols-3 gap-3 px-4 pb-4 pt-4">
-        <BigStat value={formatNumber(counts.all)} label={t('statInChat')} />
-        <BigStat value={formatNumber(counts.lurker)} label={t('statQuiet')} />
+        <BigStat value={formatNumber(Math.max(counts.all, chatters))} label={t('statInChat')} />
+        <BigStat value={formatNumber(lurkersEstimate(counts.lurker, counts.all, chatters))} label={t('statQuiet')} />
         <BigStat value={formatNumber(counts.regular)} label={t('statRegulars')} />
       </div>
       {!namesReceived && !helix && <p className="mx-4 mb-3 border-l border-line pl-3 text-[11.5px] leading-relaxed text-faint">{t('noNamesWarn')}</p>}
@@ -355,6 +356,15 @@ function MiniStat({ value, label, dot }: { value: string; label: string; dot?: s
 
 const compact = (n: number): string => (n >= 10_000 ? `${Math.round(n / 1000)}k` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n))
 
+/**
+ * Lurker: wen Lurk selbst als still kennt – oder, wenn Twitch mehr Leute im Chat meldet als Lurk
+ * kennt, Twitchs Zahl minus die, die geschrieben haben.
+ */
+function lurkersEstimate(knownLurkers: number, known: number, chatters: number): number {
+  if (chatters <= known) return knownLurkers
+  return Math.max(knownLurkers, chatters - (known - knownLurkers))
+}
+
 function MiniPanel({ channel }: { channel: string }) {
   const t = useT()
   const set = useUi((u) => u.set)
@@ -365,8 +375,9 @@ function MiniPanel({ channel }: { channel: string }) {
   useChat((s) => s.channels[channel]?.statsVersion)
   useTick(30_000)
   const { now, present } = usePresenceView(channel, 2000)
-  const presentCount = present.length
-  const lurking = present.filter((p) => p.msgCount === 0).length
+  const chatters = useChat((s) => s.channels[channel]?.info.chatters ?? 0)
+  const presentCount = Math.max(present.length, chatters)
+  const lurking = lurkersEstimate(present.filter((p) => p.msgCount === 0).length, present.length, chatters)
   const fresh = present.filter((p) => isNewcomer(p, now)).length
   const perMin = (buckets ?? []).slice(-5).reduce((a, b) => a + b, 0) / 5
   const joins = useMemo(() => {

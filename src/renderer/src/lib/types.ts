@@ -85,6 +85,8 @@ export interface StreamInfo {
   viewers?: number
   startedAt?: string
   followers?: number
+  /** Leute im Chat laut Twitch – sofort da, auch für Lurker, die Twitch einem Gast nicht meldet */
+  chatters?: number
 }
 
 export interface ChannelStats {
